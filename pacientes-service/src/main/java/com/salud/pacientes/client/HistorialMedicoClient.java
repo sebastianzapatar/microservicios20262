@@ -1,6 +1,8 @@
 package com.salud.pacientes.client;
 
 import com.salud.pacientes.dto.HistorialMedicoResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.cloud.client.ServiceInstance;
 import org.springframework.cloud.client.discovery.DiscoveryClient;
 import org.springframework.core.ParameterizedTypeReference;
@@ -21,6 +23,8 @@ import java.util.List;
 @Component
 public class HistorialMedicoClient {
 
+    private static final Logger log = LoggerFactory.getLogger(HistorialMedicoClient.class);
+
     private final DiscoveryClient discoveryClient;
     private final RestClient restClient;
 
@@ -36,6 +40,7 @@ public class HistorialMedicoClient {
     public List<HistorialMedicoResponse> obtenerHistorialPorPaciente(Long pacienteId) {
         String baseUrl = getServiceUrl("HISTORIAL-MEDICO-SERVICE");
         if (baseUrl == null) {
+            log.warn("HISTORIAL-MEDICO-SERVICE no está registrado en Eureka; se devuelve historial vacío");
             return Collections.emptyList();
         }
 
@@ -48,7 +53,11 @@ public class HistorialMedicoClient {
 
             return response != null ? response : Collections.emptyList();
         } catch (Exception e) {
-            // Si el servicio no está disponible, retorna lista vacía
+            // Degradación elegante: si el otro servicio falla, el paciente se
+            // devuelve igualmente pero sin historial. Se registra el motivo:
+            // un catch silencioso convierte un error en "no hay datos".
+            log.error("Fallo al consultar el historial del paciente {} en {}: {}",
+                    pacienteId, baseUrl, e.getMessage(), e);
             return Collections.emptyList();
         }
     }

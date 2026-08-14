@@ -53,3 +53,15 @@ logging:
     com.salud.gateway: DEBUG
     org.springframework.cloud.gateway: DEBUG
     org.springframework.security: DEBUG
+
+# Actuator - health checks para Docker Compose y Kubernetes (probes)
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
+      probes:
+        enabled: true

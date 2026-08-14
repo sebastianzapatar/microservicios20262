@@ -6,9 +6,10 @@ spring:
     name: HISTORIAL-MEDICO-SERVICE
 
   # MongoDB Configuration
-  data:
-    mongodb:
-      uri: mongodb://admin:admin123@localhost:27017/historial_medico_db?authSource=admin
+  # OJO: en Spring Boot 4 la propiedad "spring.data.mongodb.uri" fue ELIMINADA.
+  # Si se usa la antigua, Spring la ignora en silencio y se conecta a localhost:27017.
+  mongodb:
+    uri: mongodb://admin:admin123@localhost:27017/historial_medico_db?authSource=admin
 
   # OAuth2 Resource Server - Keycloak JWT
   security:
@@ -33,3 +34,15 @@ logging:
   level:
     com.salud.historial: DEBUG
     org.springframework.security: DEBUG
+
+# Actuator - health checks para Docker Compose y Kubernetes (probes)
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
+      probes:
+        enabled: true

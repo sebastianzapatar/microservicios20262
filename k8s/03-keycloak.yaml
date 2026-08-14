@@ -1,0 +1,101 @@
+# ==========================================
+# KEYCLOAK (Identity Provider)
+#
+# ⚠️ REQUISITO PREVIO: este Deployment monta el realm desde un ConfigMap que
+# NO se crea aquí (un ConfigMap no puede incrustar un JSON grande de forma
+# cómoda). Créalo ANTES de aplicar este archivo, desde la raíz del proyecto:
+#
+#   kubectl create configmap keycloak-realm-config \
+#     --from-file=realm-export.json=keycloak/realm-export.json
+#
+# Si lo olvidas, el Pod se queda en ContainerCreating con el error
+# "configmap keycloak-realm-config not found".
+# ==========================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: keycloak-salud
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: keycloak-salud
+  template:
+    metadata:
+      labels:
+        app: keycloak-salud
+    spec:
+      containers:
+      - name: keycloak
+        image: quay.io/keycloak/keycloak:25.0
+        args: ["start-dev", "--import-realm"]
+        env:
+        - name: KC_DB
+          valueFrom:
+            configMapKeyRef:
+              name: salud-config
+              key: KC_DB
+        - name: KEYCLOAK_ADMIN
+          valueFrom:
+            secretKeyRef:
+              name: salud-secrets
+              key: KC_ADMIN
+        - name: KEYCLOAK_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: salud-secrets
+              key: KC_ADMIN_PASSWORD
+        - name: KC_HEALTH_ENABLED
+          value: "true"
+        # URL pública con la que Keycloak firma el claim "iss" de los tokens.
+        # Debe coincidir con SPRING_..._ISSUER_URI del ConfigMap (01-config.yaml)
+        # y con la URL que uses para pedir el token (kubectl port-forward).
+        - name: KC_HOSTNAME
+          value: localhost
+        - name: KC_HOSTNAME_PORT
+          value: "8080"
+        - name: KC_HOSTNAME_STRICT
+          value: "false"
+        - name: KC_HOSTNAME_STRICT_BACKCHANNEL
+          value: "false"
+        - name: KC_HTTP_ENABLED
+          value: "true"
+        ports:
+        - containerPort: 8080
+          name: http
+        - containerPort: 9000
+          name: health
+        # Keycloak expone /health/ready en el puerto de gestión 9000 (KC 25+).
+        readinessProbe:
+          httpGet:
+            path: /health/ready
+            port: 9000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          failureThreshold: 20
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+        volumeMounts:
+        - name: realm-config
+          mountPath: /opt/keycloak/data/import/
+      volumes:
+      - name: realm-config
+        configMap:
+          name: keycloak-realm-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak-salud
+spec:
+  type: NodePort
+  selector:
+    app: keycloak-salud
+  ports:
+    - port: 8080
+      targetPort: 8080
+      nodePort: 30080

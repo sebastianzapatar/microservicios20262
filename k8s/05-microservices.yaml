@@ -1,0 +1,267 @@
+# ==========================================
+# PACIENTES SERVICE (Java + PostgreSQL)
+# ==========================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pacientes-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pacientes-service
+  template:
+    metadata:
+      labels:
+        app: pacientes-service
+    spec:
+      containers:
+      - name: pacientes-service
+        image: pacientes-service:latest
+        imagePullPolicy: Never
+        env:
+        - name: SPRING_DATASOURCE_URL
+          value: jdbc:postgresql://postgres-salud:5432/pacientes_db
+        - name: SPRING_DATASOURCE_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: salud-secrets
+              key: POSTGRES_USER
+        - name: SPRING_DATASOURCE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: salud-secrets
+              key: POSTGRES_PASSWORD
+        - name: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
+          valueFrom:
+            configMapKeyRef:
+              name: salud-config
+              key: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
+        - name: SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI
+          valueFrom:
+            configMapKeyRef:
+              name: salud-config
+              key: SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI
+        - name: SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI
+          valueFrom:
+            configMapKeyRef:
+              name: salud-config
+              key: SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI
+        ports:
+        - containerPort: 8081
+        readinessProbe:
+          httpGet:
+            path: /actuator/health/readiness
+            port: 8081
+          initialDelaySeconds: 25
+          periodSeconds: 10
+          failureThreshold: 15
+        livenessProbe:
+          httpGet:
+            path: /actuator/health/liveness
+            port: 8081
+          initialDelaySeconds: 70
+          periodSeconds: 20
+        resources:
+          requests:
+            memory: "384Mi"
+            cpu: "200m"
+          limits:
+            memory: "768Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pacientes-service
+spec:
+  selector:
+    app: pacientes-service
+  ports:
+    - port: 8081
+      targetPort: 8081
+
+# ==========================================
+# HISTORIAL MEDICO SERVICE (Java + MongoDB)
+# ==========================================
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: historial-medico-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: historial-medico-service
+  template:
+    metadata:
+      labels:
+        app: historial-medico-service
+    spec:
+      containers:
+      - name: historial-medico-service
+        image: historial-medico-service:latest
+        imagePullPolicy: Never
+        env:
+        - name: MONGO_USER
+          valueFrom:
+            secretKeyRef:
+              name: salud-secrets
+              key: MONGO_USER
+        - name: MONGO_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: salud-secrets
+              key: MONGO_PASSWORD
+        - name: MONGO_DB
+          valueFrom:
+            configMapKeyRef:
+              name: salud-config
+              key: MONGO_DB
+        # $(VAR) referencia variables declaradas ANTES en esta misma lista.
+        - name: SPRING_MONGODB_URI
+          value: "mongodb://$(MONGO_USER):$(MONGO_PASSWORD)@mongo-salud:27017/$(MONGO_DB)?authSource=admin"
+        - name: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
+          valueFrom:
+            configMapKeyRef:
+              name: salud-config
+              key: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
+        - name: SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI
+          valueFrom:
+            configMapKeyRef:
+              name: salud-config
+              key: SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI
+        - name: SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI
+          valueFrom:
+            configMapKeyRef:
+              name: salud-config
+              key: SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI
+        ports:
+        - containerPort: 8082
+        readinessProbe:
+          httpGet:
+            path: /actuator/health/readiness
+            port: 8082
+          initialDelaySeconds: 25
+          periodSeconds: 10
+          failureThreshold: 15
+        livenessProbe:
+          httpGet:
+            path: /actuator/health/liveness
+            port: 8082
+          initialDelaySeconds: 70
+          periodSeconds: 20
+        resources:
+          requests:
+            memory: "384Mi"
+            cpu: "200m"
+          limits:
+            memory: "768Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: historial-medico-service
+spec:
+  selector:
+    app: historial-medico-service
+  ports:
+    - port: 8082
+      targetPort: 8082
+
+# ==========================================
+# PACIENTES FASTAPI SERVICE (Python)
+# ==========================================
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pacientes-fastapi-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pacientes-fastapi-service
+  template:
+    metadata:
+      labels:
+        app: pacientes-fastapi-service
+    spec:
+      containers:
+      - name: pacientes-fastapi-service
+        image: pacientes-fastapi-service:latest
+        imagePullPolicy: Never
+        env:
+        - name: MONGO_USER
+          valueFrom:
+            secretKeyRef:
+              name: salud-secrets
+              key: MONGO_USER
+        - name: MONGO_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: salud-secrets
+              key: MONGO_PASSWORD
+        - name: MONGO_DB
+          valueFrom:
+            configMapKeyRef:
+              name: salud-config
+              key: MONGO_DB
+        - name: MYSQL_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: salud-secrets
+              key: MYSQL_ROOT_PASSWORD
+        - name: MYSQL_DATABASE
+          valueFrom:
+            configMapKeyRef:
+              name: salud-config
+              key: MYSQL_DATABASE
+        - name: EUREKA_SERVER
+          valueFrom:
+            configMapKeyRef:
+              name: salud-config
+              key: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
+        - name: MONGO_HOST
+          value: mongo-salud
+        - name: MYSQL_HOST
+          value: mysql-salud
+        # py-eureka-client se anuncia por defecto con el hostname del Pod, que
+        # NO es resoluble por DNS en Kubernetes. Se inyecta la IP del Pod con la
+        # Downward API para que el Gateway pueda alcanzar este servicio.
+        - name: INSTANCE_HOST
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        ports:
+        - containerPort: 8083
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8083
+          initialDelaySeconds: 15
+          periodSeconds: 10
+          failureThreshold: 15
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8083
+          initialDelaySeconds: 45
+          periodSeconds: 20
+        resources:
+          requests:
+            memory: "192Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pacientes-fastapi-service
+spec:
+  selector:
+    app: pacientes-fastapi-service
+  ports:
+    - port: 8083
+      targetPort: 8083

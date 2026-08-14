@@ -119,6 +119,9 @@
     <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap" class="fi fd4">
         <span class="bd bp">Spring Boot 4.1</span><span class="bd ba">Spring Cloud 2025.1</span><span class="bd bo">Keycloak OAuth2</span><span class="bd bv">Gradle 9.7</span>
     </div>
+    <div style="margin-top:20px; text-align:center;" class="fi fd4">
+        <a href="kubernetes.html" class="bd bp" style="text-decoration:none; padding:8px 16px; font-size:0.9rem;">Ver Presentación de Kubernetes ☸️</a>
+    </div>
     <p style="margin-top:36px;font-size:.78rem;color:var(--t)" class="fi fd4">Usa <span class="kbd">←</span> <span class="kbd">→</span> o <span class="kbd">Space</span> para navegar</p>
 </div>
 </div>
@@ -229,9 +232,10 @@
         <tr><td>🍃 BD NoSQL</td><td><strong style="color:var(--a)">MongoDB</strong></td><td><code style="font-family:var(--fc);color:var(--p)">7</code></td><td>Historiales médicos (documentos)</td></tr>
         <tr><td>🐬 BD Relacional</td><td><strong style="color:var(--a)">MySQL</strong></td><td><code style="font-family:var(--fc);color:var(--p)">8.0</code></td><td>Usuarios (Autenticación propia)</td></tr>
         <tr><td>🔐 Seguridad</td><td><strong style="color:var(--a)">Keycloak</strong></td><td><code style="font-family:var(--fc);color:var(--p)">25.x</code></td><td>OAuth2 / OpenID Connect / JWT</td></tr>
-        <tr><td>☕ Lenguajes</td><td><strong style="color:var(--a)">Java / Python</strong></td><td><code style="font-family:var(--fc);color:var(--p)">25 / 3.11</code></td><td>Lenguajes de programación</td></tr>
-        <tr><td>🔧 Build</td><td><strong style="color:var(--a)">Gradle / Pip</strong></td><td><code style="font-family:var(--fc);color:var(--p)">9.7</code></td><td>Build tool y dependencias</td></tr>
-        <tr><td>🐳 Contenedores</td><td><strong style="color:var(--a)">Docker Compose</strong></td><td><code style="font-family:var(--fc);color:var(--p)">latest</code></td><td>Infraestructura de desarrollo</td></tr>
+        <tr><td>☕ Lenguajes</td><td><strong style="color:var(--a)">Java / Python</strong></td><td><code style="font-family:var(--fc);color:var(--p)">25 / 3.11</code></td><td>Lenguajes de programación (Java 25 LTS)</td></tr>
+        <tr><td>🔧 Build</td><td><strong style="color:var(--a)">Gradle / uv</strong></td><td><code style="font-family:var(--fc);color:var(--p)">9.7 / uv</code></td><td>Build tool y dependencias</td></tr>
+        <tr><td>🐳 Contenedores</td><td><strong style="color:var(--a)">Docker Compose</strong></td><td><code style="font-family:var(--fc);color:var(--p)">latest</code></td><td>Todo el sistema en un solo comando</td></tr>
+        <tr><td>☸️ Orquestación</td><td><strong style="color:var(--a)">Kubernetes</strong></td><td><code style="font-family:var(--fc);color:var(--p)">Minikube</code></td><td>Despliegue en clúster (ver <code style="color:var(--p)">k8s/</code>)</td></tr>
     </tbody>
 </table>
 </div>
@@ -251,7 +255,8 @@
         </ul>
         <h3 style="font-family:var(--fh);font-size:1rem;margin:18px 0 10px;color:var(--p)">🌐 Gateway (:8090)</h3>
         <div class="cd" style="margin-bottom:10px"><div class="cn">📂 /api/pacientes/**</div><div class="ct">→ <code style="font-family:var(--fc);color:var(--a)">lb://PACIENTES-SERVICE</code></div></div>
-        <div class="cd"><div class="cn">📂 /api/historiales/**</div><div class="ct">→ <code style="font-family:var(--fc);color:var(--a)">lb://HISTORIAL-MEDICO-SERVICE</code></div></div>
+        <div class="cd" style="margin-bottom:10px"><div class="cn">📂 /api/historiales/**</div><div class="ct">→ <code style="font-family:var(--fc);color:var(--a)">lb://HISTORIAL-MEDICO-SERVICE</code></div></div>
+        <div class="cd"><div class="cn">📂 /api/usuarios/** · /api/consultas/**</div><div class="ct">→ <code style="font-family:var(--fc);color:var(--a)">lb://PACIENTES-FASTAPI-SERVICE</code></div></div>
     </div>
     <div>
         <div class="cb"><div class="ch"><div class="d dr"></div><div class="d dy"></div><div class="d dg"></div><span class="fn">application.yml (Gateway)</span></div>
@@ -271,7 +276,13 @@
             - <span class="tp">id</span>: <span class="str">historial-medico-service</span>
               <span class="tp">uri</span>: <span class="str">lb://HISTORIAL-MEDICO-SERVICE</span>
               <span class="tp">predicates</span>:
-                - <span class="str">Path=/api/historiales/**</span></div>
+                - <span class="str">Path=/api/historiales/**</span>
+
+            <span class="cmt"># Usuarios y Consultas (FastAPI)</span>
+            - <span class="tp">id</span>: <span class="str">pacientes-fastapi-service</span>
+              <span class="tp">uri</span>: <span class="str">lb://PACIENTES-FASTAPI-SERVICE</span>
+              <span class="tp">predicates</span>:
+                - <span class="str">Path=/api/usuarios/**, /api/consultas/**</span></div>
     </div>
 </div>
 </div>
@@ -418,6 +429,7 @@
             <li><span class="ic">3️⃣</span> JWT se propaga entre servicios</li>
             <li><span class="ic">4️⃣</span> Sin token → 401 Unauthorized</li>
         </ul>
+        <div class="cd" style="margin-top:12px;border-color:rgba(255,165,0,.3)"><span class="ci">⚠️</span><div class="cn">Dos esquemas de token (a propósito)</div><div class="ct">Los servicios Java delegan la identidad en <strong>Keycloak</strong> (OAuth2/OIDC). FastAPI implementa su <strong>propio</strong> JWT (HS256) para mostrar el contraste, por eso el Gateway deja pasar <code style="font-family:var(--fc);color:var(--a)">/api/consultas/**</code> y es el servicio Python quien lo valida.</div></div>
     </div>
     <div>
         <div class="cb"><div class="ch"><div class="d dr"></div><div class="d dy"></div><div class="d dg"></div><span class="fn">SecurityConfig.java</span></div>
@@ -448,15 +460,16 @@
 <!-- SLIDE 13: EJECUCIÓN -->
 <div class="slide bg-dots" data-s="12">
 <h2 class="tt fi"><span class="n">12.</span> Guía de Ejecución</h2>
-<p class="sd fi fd1">Pasos para levantar el sistema completo en tu máquina local.</p>
+<p class="sd fi fd1">Todo el sistema (3 bases de datos + Keycloak + 5 microservicios) está contenerizado: un solo comando lo levanta.</p>
 <div class="cg c3 fi fd2" style="max-width:1000px">
-    <div class="cd"><span class="ci">🐳</span><div class="cn">1. Infraestructura</div><div class="cb" style="margin-top:8px;font-size:.72rem;padding:10px">docker-compose up -d</div><div class="ct" style="margin-top:6px">Levanta PostgreSQL, MongoDB, Keycloak</div></div>
-    <div class="cd"><span class="ci">📡</span><div class="cn">2. Eureka Server</div><div class="cb" style="margin-top:8px;font-size:.72rem;padding:10px"><span class="kw">cd</span> eureka-server<br>./gradlew bootRun</div><div class="ct" style="margin-top:6px">Dashboard: <code style="color:var(--p)">localhost:8761</code></div></div>
-    <div class="cd"><span class="ci">🌐</span><div class="cn">3. Gateway</div><div class="cb" style="margin-top:8px;font-size:.72rem;padding:10px"><span class="kw">cd</span> gateway-service<br>./gradlew bootRun</div><div class="ct" style="margin-top:6px">Entrada: <code style="color:var(--p)">localhost:8090</code></div></div>
-    <div class="cd"><span class="ci">🏥</span><div class="cn">4. Pacientes</div><div class="cb" style="margin-top:8px;font-size:.72rem;padding:10px"><span class="kw">cd</span> pacientes-service<br>./gradlew bootRun</div><div class="ct" style="margin-top:6px">API: <code style="color:var(--p)">localhost:8081</code></div></div>
-    <div class="cd"><span class="ci">📋</span><div class="cn">5. Historial Médico</div><div class="cb" style="margin-top:8px;font-size:.72rem;padding:10px"><span class="kw">cd</span> historial-medico-service<br>./gradlew bootRun</div><div class="ct" style="margin-top:6px">API: <code style="color:var(--p)">localhost:8082</code></div></div>
-    <div class="cd"><span class="ci">✅</span><div class="cn">6. Verificar</div><div class="cb" style="margin-top:8px;font-size:.72rem;padding:10px"><span class="cmt"># Eureka Dashboard</span><br>http://localhost:<span class="str">8761</span></div><div class="ct" style="margin-top:6px">3 servicios registrados</div></div>
+    <div class="cd"><span class="ci">🔑</span><div class="cn">1. Variables de entorno</div><div class="cb" style="margin-top:8px;font-size:.72rem;padding:10px">cp env.template .env</div><div class="ct" style="margin-top:6px">Completa usuarios y contraseñas vacíos</div></div>
+    <div class="cd"><span class="ci">🐳</span><div class="cn">2. Levantar todo</div><div class="cb" style="margin-top:8px;font-size:.72rem;padding:10px">docker compose up --build -d</div><div class="ct" style="margin-top:6px">Construye las 5 imágenes y arranca 9 contenedores</div></div>
+    <div class="cd"><span class="ci">📡</span><div class="cn">3. Verificar Eureka</div><div class="cb" style="margin-top:8px;font-size:.72rem;padding:10px">http://localhost:<span class="str">8761</span></div><div class="ct" style="margin-top:6px"><strong>4 servicios</strong> registrados (Gateway, Pacientes, Historial y FastAPI)</div></div>
+    <div class="cd"><span class="ci">🔐</span><div class="cn">4. Obtener un token</div><div class="cb" style="margin-top:8px;font-size:.72rem;padding:10px"><span class="cmt"># Keycloak :8080</span><br>realms/salud-system/<br>protocol/openid-connect/token</div><div class="ct" style="margin-top:6px">Usuario <code style="color:var(--a)">medico / medico123</code></div></div>
+    <div class="cd"><span class="ci">🌐</span><div class="cn">5. Usar el Gateway</div><div class="cb" style="margin-top:8px;font-size:.72rem;padding:10px">curl localhost:<span class="str">8090</span>/api/pacientes \<br>-H <span class="str">"Authorization: Bearer $TOKEN"</span></div><div class="ct" style="margin-top:6px">Toda petición entra por el puerto 8090</div></div>
+    <div class="cd"><span class="ci">☸️</span><div class="cn">6. Opcional: Kubernetes</div><div class="cb" style="margin-top:8px;font-size:.72rem;padding:10px">kubectl apply -f k8s/</div><div class="ct" style="margin-top:6px">Ver <code style="color:var(--p)">tutorial_kubernetes.md</code></div></div>
 </div>
+<p style="margin-top:18px;font-size:.78rem;color:var(--t)" class="fi fd3">💡 Para desarrollar un servicio suelto: <code style="font-family:var(--fc);color:var(--p)">docker compose up -d postgres mongodb mysql keycloak eureka-server</code> y luego <code style="font-family:var(--fc);color:var(--p)">./gradlew bootRun</code> en ese servicio.</p>
 </div>
 
 <!-- SLIDE 14: CIERRE -->
@@ -493,6 +506,7 @@
 
 <script>
 const S=document.querySelectorAll('.slide'),T=S.length;let I=0;
+document.getElementById('tot').textContent=T;
 const D=document.getElementById('dots');
 for(let i=0;i<T;i++){const d=document.createElement('div');d.className='nd'+(i===0?' act':'');d.onclick=()=>go(i);D.appendChild(d)}
 function upd(){S.forEach((s,i)=>{s.classList.remove('active','prev');if(i===I)s.classList.add('active');else if(i<I)s.classList.add('prev')});document.querySelectorAll('.nd').forEach((d,i)=>d.classList.toggle('act',i===I));document.getElementById('cur').textContent=I+1;document.getElementById('pb').style.width=(I/(T-1)*100)+'%'}

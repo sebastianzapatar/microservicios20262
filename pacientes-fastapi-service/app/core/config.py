@@ -7,7 +7,12 @@ class Settings:
 
     # Eureka
     EUREKA_SERVER: str = os.getenv("EUREKA_SERVER", "http://eureka-server:8761/eureka/")
-    
+    # Host con el que este servicio se anuncia en Eureka. Debe ser resoluble por
+    # el Gateway: en Docker Compose es el nombre del contenedor y en Kubernetes
+    # se inyecta la IP del Pod (Downward API). Sin esto, py-eureka-client
+    # registra el hostname interno y el Gateway responde 503.
+    INSTANCE_HOST: str = os.getenv("INSTANCE_HOST", "pacientes-fastapi-service")
+
     # MySQL
     MYSQL_ROOT_PASSWORD: str = os.getenv("MYSQL_ROOT_PASSWORD", "root")
     MYSQL_DATABASE: str = os.getenv("MYSQL_DATABASE", "usuarios_db")

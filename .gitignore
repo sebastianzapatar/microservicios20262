@@ -30,6 +30,18 @@ build/
 !**/src/main/**/build/
 !**/src/test/**/build/
 
+# Python / uv
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+# uv.lock SÍ se versiona: fija las versiones exactas para toda la clase
+
+# Node / varios
+target/
+
 # IDEs
 .idea/
 .vscode/

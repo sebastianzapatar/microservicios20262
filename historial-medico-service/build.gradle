@@ -9,7 +9,7 @@ version = '1.0.0'
 
 java {
     toolchain {
-        languageVersion = JavaLanguageVersion.of(21)
+        languageVersion = JavaLanguageVersion.of(25)
     }
 }
 
@@ -30,6 +30,9 @@ configurations {
 dependencies {
     // Web
     implementation 'org.springframework.boot:spring-boot-starter-web'
+
+    // Actuator (health checks para Docker y Kubernetes)
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
 
     // MongoDB
     implementation 'org.springframework.boot:spring-boot-starter-data-mongodb'

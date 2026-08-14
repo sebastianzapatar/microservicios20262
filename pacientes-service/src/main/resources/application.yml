@@ -44,3 +44,15 @@ logging:
   level:
     com.salud.pacientes: DEBUG
     org.springframework.security: DEBUG
+
+# Actuator - health checks para Docker Compose y Kubernetes (probes)
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
+      probes:
+        enabled: true

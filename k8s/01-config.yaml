@@ -1,0 +1,44 @@
+# ==========================================
+# CONFIGURACIÓN COMPARTIDA DEL CLÚSTER
+#
+# ConfigMap -> valores NO sensibles (nombres de BD, URLs internas).
+# Secret    -> credenciales. En un clúster real se usaría Sealed Secrets,
+#              External Secrets o el gestor de secretos del proveedor cloud.
+# ==========================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: salud-config
+data:
+  POSTGRES_DB: pacientes_db
+  MONGO_DB: historial_medico_db
+  MYSQL_DATABASE: usuarios_db
+  KC_DB: dev-mem
+
+  # Los Services de Kubernetes crean estos nombres DNS dentro del clúster.
+  EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "http://eureka-server:8761/eureka/"
+
+  # ISSUER_URI: URL PÚBLICA de Keycloak. Es el valor del claim "iss" que viaja
+  # dentro del token, y es contra el que los servicios comparan. Como el
+  # tutorial accede a Keycloak con "kubectl port-forward ... 8080:8080",
+  # la URL pública es localhost:8080.
+  SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: "http://localhost:8080/realms/salud-system"
+
+  # JWK_SET_URI: URL INTERNA para descargar las llaves públicas. Es la única
+  # alcanzable desde dentro de un Pod. Sin esta separación, el servicio
+  # intentaría descargar las llaves desde su propio localhost y fallaría.
+  SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: "http://keycloak-salud:8080/realms/salud-system/protocol/openid-connect/certs"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: salud-secrets
+type: Opaque
+stringData:
+  POSTGRES_USER: "postgres"
+  POSTGRES_PASSWORD: "admin"
+  MONGO_USER: "admin"
+  MONGO_PASSWORD: "admin"
+  MYSQL_ROOT_PASSWORD: "root"
+  KC_ADMIN: "admin"
+  KC_ADMIN_PASSWORD: "admin"

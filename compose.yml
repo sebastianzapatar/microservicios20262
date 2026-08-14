@@ -10,6 +10,11 @@ services:
       - "${POSTGRES_PORT}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
     networks:
       - salud-network
 
@@ -24,6 +29,11 @@ services:
       - "${MONGO_PORT}:27017"
     volumes:
       - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
     networks:
       - salud-network
 
@@ -37,6 +47,11 @@ services:
       - "${MYSQL_PORT}:3306"
     volumes:
       - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
     networks:
       - salud-network
 
@@ -48,6 +63,14 @@ services:
       KEYCLOAK_ADMIN: ${KC_ADMIN}
       KEYCLOAK_ADMIN_PASSWORD: ${KC_ADMIN_PASSWORD}
       KC_HEALTH_ENABLED: "true"
+      # El "issuer" de los tokens se construye con esta URL pública. Se fija a
+      # localhost:8080 (la URL que usan los estudiantes desde el navegador o
+      # curl) para que el claim "iss" coincida con lo que validan los servicios.
+      KC_HOSTNAME: localhost
+      KC_HOSTNAME_PORT: "8080"
+      KC_HOSTNAME_STRICT: "false"
+      KC_HOSTNAME_STRICT_BACKCHANNEL: "false"
+      KC_HTTP_ENABLED: "true"
     command: start-dev --import-realm
     ports:
       - "${KC_PORT}:8080"
@@ -63,6 +86,7 @@ services:
     container_name: eureka-server
     ports:
       - "${EUREKA_PORT}:8761"
+    restart: unless-stopped
     networks:
       - salud-network
 
@@ -75,10 +99,16 @@ services:
       - "${GATEWAY_PORT}:8090"
     environment:
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-server:8761/eureka/
-      - SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI=http://keycloak-salud:8080/realms/salud-system
+      # ISSUER_URI = URL pública de Keycloak (lo que trae el claim "iss" del token).
+      # JWK_SET_URI = URL interna, la única resoluble desde dentro de la red Docker.
+      # Si solo se usara issuer-uri, el servicio intentaría descargar las llaves
+      # desde localhost:8080 (su propio contenedor) y fallaría.
+      - SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI=http://localhost:8080/realms/salud-system
+      - SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI=http://keycloak-salud:8080/realms/salud-system/protocol/openid-connect/certs
     depends_on:
       - eureka-server
       - keycloak
+    restart: unless-stopped
     networks:
       - salud-network
 
@@ -94,11 +124,16 @@ services:
       - SPRING_DATASOURCE_USERNAME=${POSTGRES_USER}
       - SPRING_DATASOURCE_PASSWORD=${POSTGRES_PASSWORD}
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-server:8761/eureka/
-      - SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI=http://keycloak-salud:8080/realms/salud-system
+      - SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI=http://localhost:8080/realms/salud-system
+      - SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI=http://keycloak-salud:8080/realms/salud-system/protocol/openid-connect/certs
     depends_on:
-      - postgres
-      - eureka-server
-      - keycloak
+      postgres:
+        condition: service_healthy
+      eureka-server:
+        condition: service_started
+      keycloak:
+        condition: service_started
+    restart: unless-stopped
     networks:
       - salud-network
 
@@ -110,13 +145,18 @@ services:
     ports:
       - "${HISTORIAL_PORT}:8082"
     environment:
-      - SPRING_DATA_MONGODB_URI=mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongo-salud:27017/${MONGO_DB}?authSource=admin
+      - SPRING_MONGODB_URI=mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongo-salud:27017/${MONGO_DB}?authSource=admin
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-server:8761/eureka/
-      - SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI=http://keycloak-salud:8080/realms/salud-system
+      - SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI=http://localhost:8080/realms/salud-system
+      - SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI=http://keycloak-salud:8080/realms/salud-system/protocol/openid-connect/certs
     depends_on:
-      - mongodb
-      - eureka-server
-      - keycloak
+      mongodb:
+        condition: service_healthy
+      eureka-server:
+        condition: service_started
+      keycloak:
+        condition: service_started
+    restart: unless-stopped
     networks:
       - salud-network
 
@@ -128,13 +168,31 @@ services:
     ports:
       - "${PACIENTES_FASTAPI_PORT}:8083"
     environment:
+      # MongoDB (lectura del historial médico)
       - MONGO_USER=${MONGO_USER}
       - MONGO_PASSWORD=${MONGO_PASSWORD}
       - MONGO_DB=${MONGO_DB}
       - MONGO_HOST=mongo-salud
       - MONGO_PORT=27017
+      # MySQL (tabla de usuarios). El puerto es el INTERNO del contenedor (3306),
+      # no ${MYSQL_PORT}, que es el puerto publicado hacia el host.
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - MYSQL_DATABASE=${MYSQL_DATABASE}
+      - MYSQL_HOST=mysql-salud
+      - MYSQL_PORT=3306
+      # Eureka: se anuncia con el nombre del contenedor para que el Gateway
+      # pueda alcanzarlo dentro de la red de Docker.
+      - EUREKA_SERVER=http://eureka-server:8761/eureka/
+      - INSTANCE_HOST=pacientes-fastapi-service
+      - PACIENTES_FASTAPI_PORT=8083
     depends_on:
-      - mongodb
+      mongodb:
+        condition: service_healthy
+      mysql:
+        condition: service_healthy
+      eureka-server:
+        condition: service_started
+    restart: unless-stopped
     networks:
       - salud-network
 

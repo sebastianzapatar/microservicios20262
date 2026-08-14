@@ -2,22 +2,26 @@
 name = "pacientes-fastapi-service"
 version = "0.1.0"
 description = "Microservicio de Usuarios y Consultas"
-readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi==0.109.2",
     "uvicorn==0.27.1",
-    "motor==3.3.2",
+    # motor 3.3.2 se rompe con pymongo >= 4.9 (ImportError _QUERY_OPTIONS)
+    "motor==3.7.1",
     "pydantic==2.6.1",
     "aiomysql==0.2.0",
     "PyJWT==2.8.0",
     "passlib[bcrypt]==1.7.4",
-    "py-eureka-client==0.11.15",
+    # passlib 1.7.4 no es compatible con bcrypt >= 4.1 (lee bcrypt.__about__),
+    # por eso la versión queda fijada explícitamente.
+    "bcrypt==4.0.1",
+    "py-eureka-client==0.11.13",
     "SQLAlchemy==2.0.25",
     "cryptography==42.0.2",
-    "email-validator==2.1.1"
+    "email-validator==2.1.1",
 ]
 
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+# El proyecto es una aplicación, no una librería que se deba empaquetar e
+# instalar. Con package = false, "uv sync" solo instala las dependencias.
+[tool.uv]
+package = false

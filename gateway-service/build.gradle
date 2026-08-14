@@ -9,7 +9,7 @@ version = '1.0.0'
 
 java {
     toolchain {
-        languageVersion = JavaLanguageVersion.of(21)
+        languageVersion = JavaLanguageVersion.of(25)
     }
 }
 
@@ -24,6 +24,9 @@ ext {
 dependencies {
     // Spring Cloud Gateway (reactive WebFlux)
     implementation 'org.springframework.cloud:spring-cloud-starter-gateway-server-webflux'
+
+    // Actuator (health checks para Docker y Kubernetes)
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
 
     // Eureka Client (para descubrir servicios)
     implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client'
