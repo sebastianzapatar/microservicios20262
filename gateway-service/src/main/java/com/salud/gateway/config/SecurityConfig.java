@@ -19,7 +19,9 @@ public class SecurityConfig {
                         // Eureka y actuator públicos
                         .pathMatchers("/actuator/**").permitAll()
                         .pathMatchers("/eureka/**").permitAll()
-                        // Todos los endpoints de la API requieren autenticación
+                        // Endpoints públicos de FastAPI (Autenticación propia)
+                        .pathMatchers("/api/usuarios/login", "/api/usuarios/registro").permitAll()
+                        // Todos los demás endpoints requieren autenticación (Keycloak)
                         .anyExchange().authenticated()
                 )
                 .oauth2ResourceServer(oauth2 -> oauth2

@@ -27,6 +27,19 @@ services:
     networks:
       - salud-network
 
+  mysql:
+    image: mysql:8.0
+    container_name: mysql-salud
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+    ports:
+      - "${MYSQL_PORT}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - salud-network
+
   keycloak:
     image: quay.io/keycloak/keycloak:25.0
     container_name: keycloak-salud
@@ -107,9 +120,28 @@ services:
     networks:
       - salud-network
 
+  pacientes-fastapi-service:
+    build:
+      context: ./pacientes-fastapi-service
+      dockerfile: Dockerfile
+    container_name: pacientes-fastapi-service
+    ports:
+      - "${PACIENTES_FASTAPI_PORT}:8083"
+    environment:
+      - MONGO_USER=${MONGO_USER}
+      - MONGO_PASSWORD=${MONGO_PASSWORD}
+      - MONGO_DB=${MONGO_DB}
+      - MONGO_HOST=mongo-salud
+      - MONGO_PORT=27017
+    depends_on:
+      - mongodb
+    networks:
+      - salud-network
+
 volumes:
   postgres_data:
   mongo_data:
+  mysql_data:
 
 networks:
   salud-network:

@@ -169,25 +169,27 @@
 <div class="slide bg-grad" data-s="3">
 <h2 class="tt fi"><span class="n">03.</span> Todo se Conecta con Todo</h2>
 <p class="sd fi fd1">En esta arquitectura, cada componente tiene un rol específico y todos se interconectan para formar un sistema cohesivo y resiliente.</p>
-<div class="cg c2 fi fd2" style="max-width:1000px">
+<div class="cg c3 fi fd2" style="max-width:1200px">
     <div class="cd"><span class="ci">🔐 → 🌐 → 🏥📋</span><div class="cn">Keycloak → Gateway → Servicios</div><div class="ct">Keycloak emite JWT. El Gateway valida el token y enruta. Los servicios verifican el JWT de forma independiente.</div></div>
     <div class="cd"><span class="ci">📡 ← 🌐🏥📋</span><div class="cn">Eureka ← Todos los Servicios</div><div class="ct">Cada servicio se registra en Eureka al arrancar. El Gateway y los servicios consultan Eureka para descubrir a otros.</div></div>
     <div class="cd"><span class="ci">🏥 ↔ 📋</span><div class="cn">Pacientes ↔ Historial Médico</div><div class="ct">Comunicación HTTP directa. Pacientes consulta historiales, Historial valida pacientes. JWT propagado.</div></div>
     <div class="cd"><span class="ci">🐘 ← 🏥</span><div class="cn">PostgreSQL ← Pacientes Service</div><div class="ct">Datos estructurados y transaccionales con JPA/Hibernate. Esquema definido con entidades @Entity.</div></div>
     <div class="cd"><span class="ci">🍃 ← 📋</span><div class="cn">MongoDB ← Historial Médico Service</div><div class="ct">Documentos flexibles con Spring Data MongoDB. Ideal para datos clínicos con estructura variable.</div></div>
-    <div class="cd"><span class="ci">🐳 → 🐘🍃🔐</span><div class="cn">Docker Compose → Infraestructura</div><div class="ct">Un solo comando levanta PostgreSQL, MongoDB y Keycloak. Todo preconfigurado para desarrollo local.</div></div>
+    <div class="cd"><span class="ci">🐬 ← 🐍</span><div class="cn">MySQL ← Usuarios FastAPI</div><div class="ct">Registro de usuarios y autenticación propia mediante JWT en Python (SQLAlchemy + aiomysql).</div></div>
+    <div class="cd" style="grid-column: span 3; text-align: center;"><span class="ci">🐳 → 🐘🍃🐬🔐</span><div class="cn">Docker Compose → Infraestructura</div><div class="ct">Un solo comando levanta PostgreSQL, MongoDB, MySQL y Keycloak. Todo preconfigurado para desarrollo local.</div></div>
 </div>
 </div>
 
 <!-- SLIDE 5: VISIÓN GENERAL -->
 <div class="slide bg-grid" data-s="4">
-<h2 class="tt fi"><span class="n">04.</span> Los 4 Servicios del Sistema</h2>
-<p class="sd fi fd1">El sistema se compone de 4 servicios Spring Boot que se registran en Eureka y se comunican via HTTP con seguridad JWT.</p>
+<h2 class="tt fi"><span class="n">04.</span> Los 5 Servicios del Sistema</h2>
+<p class="sd fi fd1">El sistema se compone de 5 servicios (Spring Boot y FastAPI) que se registran en Eureka.</p>
 <div class="cg c4 fi fd2">
-    <div class="cd" style="text-align:center"><span class="ci">📡</span><div class="cn">Eureka Server</div><div class="ct">Registro y descubrimiento automático de servicios</div><div style="margin-top:8px"><span class="bd ba">Puerto 8761</span></div></div>
-    <div class="cd" style="text-align:center"><span class="ci">🌐</span><div class="cn">API Gateway</div><div class="ct">Punto de entrada único, enruta via Eureka con load balancing</div><div style="margin-top:8px"><span class="bd bp">Puerto 8090</span></div></div>
-    <div class="cd" style="text-align:center"><span class="ci">🏥</span><div class="cn">Pacientes Service</div><div class="ct">CRUD pacientes con PostgreSQL, llama a Historial</div><div style="margin-top:8px"><span class="bd bv">Puerto 8081</span></div></div>
-    <div class="cd" style="text-align:center"><span class="ci">📋</span><div class="cn">Historial Médico</div><div class="ct">Historiales en MongoDB, valida pacientes via HTTP</div><div style="margin-top:8px"><span class="bd bo">Puerto 8082</span></div></div>
+    <div class="cd" style="text-align:center"><span class="ci">📡</span><div class="cn">Eureka Server</div><div class="ct">Registro y descubrimiento automático de servicios</div><div style="margin-top:8px"><span class="bd ba">Puerto 8761</span></div><div style="margin-top:12px;display:flex;gap:4px;flex-wrap:wrap;justify-content:center"><span class="kbd">eureka-server</span></div></div>
+    <div class="cd" style="text-align:center"><span class="ci">🌐</span><div class="cn">API Gateway</div><div class="ct">Punto de entrada único, enruta via Eureka con load balancing</div><div style="margin-top:8px"><span class="bd bp">Puerto 8090</span></div><div style="margin-top:12px;display:flex;gap:4px;flex-wrap:wrap;justify-content:center"><span class="kbd">gateway</span><span class="kbd">eureka-client</span><span class="kbd">oauth2-resource-server</span></div></div>
+    <div class="cd" style="text-align:center"><span class="ci">🏥</span><div class="cn">Pacientes Service</div><div class="ct">CRUD pacientes con PostgreSQL, llama a Historial</div><div style="margin-top:8px"><span class="bd bv">Puerto 8081</span></div><div style="margin-top:12px;display:flex;gap:4px;flex-wrap:wrap;justify-content:center"><span class="kbd">data-jpa</span><span class="kbd">postgresql</span><span class="kbd">web</span></div></div>
+    <div class="cd" style="text-align:center"><span class="ci">📋</span><div class="cn">Historial Médico</div><div class="ct">Historiales en MongoDB, valida pacientes via HTTP</div><div style="margin-top:8px"><span class="bd bo">Puerto 8082</span></div><div style="margin-top:12px;display:flex;gap:4px;flex-wrap:wrap;justify-content:center"><span class="kbd">data-mongodb</span><span class="kbd">oauth2</span><span class="kbd">web</span></div></div>
+    <div class="cd" style="text-align:center"><span class="ci">🐍</span><div class="cn">Usuarios FastAPI</div><div class="ct">Registro en MySQL y consultas en MongoDB</div><div style="margin-top:8px"><span class="bd br">Puerto 8083</span></div><div style="margin-top:12px;display:flex;gap:4px;flex-wrap:wrap;justify-content:center"><span class="kbd">fastapi</span><span class="kbd">uvicorn</span><span class="kbd">motor</span><span class="kbd">sqlalchemy</span><span class="kbd">aiomysql</span><span class="kbd">uv</span></div></div>
 </div>
 </div>
 
@@ -203,11 +205,13 @@
         <div class="conn-h"></div>
         <div class="an"><div class="node af" style="border-color:rgba(97,206,112,.4);animation-delay:1s"><div class="ni">📡</div><div class="nn">Eureka Server</div><div class="nd">Service Discovery</div><div class="np">:8761</div></div></div>
     </div>
-    <div style="display:flex;gap:180px"><div class="conn-v"></div><div class="conn-v"></div></div>
-    <div style="display:flex;gap:20px;align-items:center;justify-content:center">
+    <div style="display:flex;gap:120px"><div class="conn-v"></div><div class="conn-v"></div><div class="conn-v"></div></div>
+    <div style="display:flex;gap:20px;align-items:center;justify-content:center;flex-wrap:wrap">
         <div class="an"><div class="node" style="border-color:rgba(100,150,255,.4);min-width:220px"><div style="display:flex;align-items:center;gap:8px;justify-content:center;margin-bottom:6px"><img src="img/postgresql.jpg" alt="PostgreSQL" class="db-logo"></div><div class="nn">Pacientes Service</div><div class="nd">Spring Boot 4.1 + JPA</div><div class="np">:8081 · PostgreSQL</div></div></div>
         <div style="display:flex;flex-direction:column;align-items:center;gap:3px"><div style="font-size:.68rem;color:var(--t);font-family:var(--fc)">HTTP + JWT</div><div style="display:flex;align-items:center;gap:3px"><span style="color:var(--p)">←</span><div style="width:50px;height:2px;background:linear-gradient(90deg,var(--p),var(--a));border-radius:1px"></div><span style="color:var(--a)">→</span></div><div style="font-size:.62rem;color:var(--t)">via Eureka</div></div>
         <div class="an"><div class="node" style="border-color:rgba(0,237,100,.4);min-width:220px"><div style="display:flex;align-items:center;gap:8px;justify-content:center;margin-bottom:6px"><img src="img/mongodb.jpg" alt="MongoDB" class="db-logo"></div><div class="nn">Historial Médico</div><div class="nd">Spring Boot 4.1 + MongoDB</div><div class="np">:8082 · MongoDB</div></div></div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:3px"><div style="font-size:.68rem;color:var(--t);font-family:var(--fc)">Consulta BD</div><div style="display:flex;align-items:center;gap:3px"><span style="color:var(--p)">←</span><div style="width:30px;height:2px;background:linear-gradient(90deg,var(--p),var(--a));border-radius:1px"></div><span style="color:var(--a)">→</span></div><div style="font-size:.62rem;color:var(--t)">Directo</div></div>
+        <div class="an"><div class="node" style="border-color:rgba(255,100,100,.4);min-width:220px"><div style="display:flex;align-items:center;gap:8px;justify-content:center;margin-bottom:6px"><span style="font-size:32px">🐬</span></div><div class="nn">Usuarios FastAPI</div><div class="nd">Python 3.11 + FastAPI</div><div class="np">:8083 · MySQL/Mongo</div></div></div>
     </div>
 </div>
 </div>
@@ -223,9 +227,10 @@
         <tr><td>☁️ Cloud</td><td><strong style="color:var(--a)">Spring Cloud</strong></td><td><code style="font-family:var(--fc);color:var(--p)">2025.1.2</code></td><td>Eureka, Gateway, Discovery</td></tr>
         <tr><td>🐘 BD Relacional</td><td><strong style="color:var(--a)">PostgreSQL</strong></td><td><code style="font-family:var(--fc);color:var(--p)">16</code></td><td>Datos de pacientes (transaccional)</td></tr>
         <tr><td>🍃 BD NoSQL</td><td><strong style="color:var(--a)">MongoDB</strong></td><td><code style="font-family:var(--fc);color:var(--p)">7</code></td><td>Historiales médicos (documentos)</td></tr>
+        <tr><td>🐬 BD Relacional</td><td><strong style="color:var(--a)">MySQL</strong></td><td><code style="font-family:var(--fc);color:var(--p)">8.0</code></td><td>Usuarios (Autenticación propia)</td></tr>
         <tr><td>🔐 Seguridad</td><td><strong style="color:var(--a)">Keycloak</strong></td><td><code style="font-family:var(--fc);color:var(--p)">25.x</code></td><td>OAuth2 / OpenID Connect / JWT</td></tr>
-        <tr><td>☕ Lenguaje</td><td><strong style="color:var(--a)">Java</strong></td><td><code style="font-family:var(--fc);color:var(--p)">25</code></td><td>Lenguaje de programación</td></tr>
-        <tr><td>🔧 Build</td><td><strong style="color:var(--a)">Gradle</strong></td><td><code style="font-family:var(--fc);color:var(--p)">9.7</code></td><td>Build tool y dependencias</td></tr>
+        <tr><td>☕ Lenguajes</td><td><strong style="color:var(--a)">Java / Python</strong></td><td><code style="font-family:var(--fc);color:var(--p)">25 / 3.11</code></td><td>Lenguajes de programación</td></tr>
+        <tr><td>🔧 Build</td><td><strong style="color:var(--a)">Gradle / Pip</strong></td><td><code style="font-family:var(--fc);color:var(--p)">9.7</code></td><td>Build tool y dependencias</td></tr>
         <tr><td>🐳 Contenedores</td><td><strong style="color:var(--a)">Docker Compose</strong></td><td><code style="font-family:var(--fc);color:var(--p)">latest</code></td><td>Infraestructura de desarrollo</td></tr>
     </tbody>
 </table>
@@ -462,8 +467,8 @@
     <h1 class="st fi fd2" style="max-width:700px">¡Gracias!<br><span class="hi">¿Preguntas?</span></h1>
     <p class="ss fi fd3">Sistema de Salud con Microservicios<br>Spring Boot 4.1 · Spring Cloud · Keycloak · PostgreSQL · MongoDB</p>
     <div class="cg c3 fi fd4" style="max-width:600px;margin-top:24px">
-        <div class="cd" style="text-align:center;padding:16px"><div style="font-family:var(--fh);font-size:1.8rem;font-weight:800;color:var(--p)">4</div><div class="ct">Servicios</div></div>
-        <div class="cd" style="text-align:center;padding:16px"><div style="font-family:var(--fh);font-size:1.8rem;font-weight:800;color:var(--a)">2</div><div class="ct">Bases de Datos</div></div>
+        <div class="cd" style="text-align:center;padding:16px"><div style="font-family:var(--fh);font-size:1.8rem;font-weight:800;color:var(--p)">5</div><div class="ct">Servicios</div></div>
+        <div class="cd" style="text-align:center;padding:16px"><div style="font-family:var(--fh);font-size:1.8rem;font-weight:800;color:var(--a)">3</div><div class="ct">Bases de Datos</div></div>
         <div class="cd" style="text-align:center;padding:16px"><div style="font-family:var(--fh);font-size:1.8rem;font-weight:800;color:#ffa500">1</div><div class="ct">Identity Provider</div></div>
     </div>
 </div>
