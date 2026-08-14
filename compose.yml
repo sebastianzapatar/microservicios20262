@@ -55,6 +55,39 @@ services:
     networks:
       - salud-network
 
+  # Broker de mensajería. Sustituye las llamadas HTTP directas entre
+  # microservicios por colas: eventos (asíncronos) y RPC (petición/respuesta).
+  # La imagen "-management" incluye la consola web en el puerto 15672, muy útil
+  # para ver en vivo las colas, los mensajes acumulados y la DLQ.
+  rabbitmq:
+    image: rabbitmq:4-management-alpine
+    container_name: rabbitmq-salud
+    # RabbitMQ guarda su estado en un directorio que depende del hostname. Se
+    # fija para que al recrear el contenedor siga encontrando sus colas durables
+    # en el volumen y no arranque como si fuera un nodo nuevo.
+    hostname: rabbitmq-salud
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+    ports:
+      - "${RABBITMQ_PORT}:5672"        # protocolo AMQP (lo usan los servicios)
+      - "${RABBITMQ_MGMT_PORT}:15672"  # consola web (http://localhost:15672)
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      # check_running verifica que el nodo arrancó; check_port_connectivity que
+      # ya acepta conexiones AMQP. Sin lo segundo, los servicios arrancarían
+      # contra un broker que todavía no escucha.
+      # Van como dos invocaciones encadenadas con && porque rabbitmq-diagnostics
+      # acepta un único subcomando por llamada.
+      test: ["CMD-SHELL", "rabbitmq-diagnostics -q check_running && rabbitmq-diagnostics -q check_port_connectivity"]
+      interval: 10s
+      timeout: 10s
+      retries: 15
+      start_period: 30s
+    networks:
+      - salud-network
+
   keycloak:
     image: quay.io/keycloak/keycloak:25.0
     container_name: keycloak-salud
@@ -126,8 +159,16 @@ services:
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-server:8761/eureka/
       - SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI=http://localhost:8080/realms/salud-system
       - SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI=http://keycloak-salud:8080/realms/salud-system/protocol/openid-connect/certs
+      # RabbitMQ. El puerto es el INTERNO del contenedor (5672), no ${RABBITMQ_PORT},
+      # que es el que se publica hacia el host.
+      - SPRING_RABBITMQ_HOST=rabbitmq-salud
+      - SPRING_RABBITMQ_PORT=5672
+      - SPRING_RABBITMQ_USERNAME=${RABBITMQ_USER}
+      - SPRING_RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
     depends_on:
       postgres:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
       eureka-server:
         condition: service_started
@@ -149,8 +190,16 @@ services:
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-server:8761/eureka/
       - SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI=http://localhost:8080/realms/salud-system
       - SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI=http://keycloak-salud:8080/realms/salud-system/protocol/openid-connect/certs
+      # RabbitMQ. El puerto es el INTERNO del contenedor (5672), no ${RABBITMQ_PORT},
+      # que es el que se publica hacia el host.
+      - SPRING_RABBITMQ_HOST=rabbitmq-salud
+      - SPRING_RABBITMQ_PORT=5672
+      - SPRING_RABBITMQ_USERNAME=${RABBITMQ_USER}
+      - SPRING_RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
     depends_on:
       mongodb:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
       eureka-server:
         condition: service_started
@@ -185,10 +234,18 @@ services:
       - EUREKA_SERVER=http://eureka-server:8761/eureka/
       - INSTANCE_HOST=pacientes-fastapi-service
       - PACIENTES_FASTAPI_PORT=8083
+      # RabbitMQ. Igual que con MySQL, el puerto es el INTERNO (5672) y no
+      # ${RABBITMQ_PORT}, que es el publicado hacia el host.
+      - RABBITMQ_HOST=rabbitmq-salud
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_USER=${RABBITMQ_USER}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
     depends_on:
       mongodb:
         condition: service_healthy
       mysql:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
       eureka-server:
         condition: service_started
@@ -200,6 +257,8 @@ volumes:
   postgres_data:
   mongo_data:
   mysql_data:
+  # Persiste las colas durables y los mensajes sin consumir entre reinicios.
+  rabbitmq_data:
 
 networks:
   salud-network:

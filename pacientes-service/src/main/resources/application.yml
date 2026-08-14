@@ -21,6 +21,30 @@ spring:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
 
+  # RabbitMQ - mensajería asíncrona y RPC entre microservicios
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: guest
+    password: guest
+
+    template:
+      # Cuánto espera el cliente RPC la respuesta antes de rendirse. Si expira,
+      # convertSendAndReceive devuelve null (ver HistorialRpcClient).
+      reply-timeout: 5s
+
+    listener:
+      simple:
+        acknowledge-mode: auto
+        # Clave: sin esto, un mensaje que falla se reencola indefinidamente y
+        # bloquea la cola. En false, al agotar los reintentos se va al DLX.
+        default-requeue-rejected: false
+        retry:
+          enabled: true
+          max-attempts: 3
+          initial-interval: 2s
+          multiplier: 2
+
   # OAuth2 Resource Server - Keycloak JWT
   security:
     oauth2:
@@ -44,6 +68,8 @@ logging:
   level:
     com.salud.pacientes: DEBUG
     org.springframework.security: DEBUG
+    # Sube a DEBUG para ver cada mensaje que entra y sale del broker.
+    org.springframework.amqp: INFO
 
 # Actuator - health checks para Docker Compose y Kubernetes (probes)
 management:

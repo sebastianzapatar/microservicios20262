@@ -97,6 +97,7 @@ La carpeta `k8s/` describe el sistema completo: 3 bases de datos, Keycloak y 5 m
 | :--- | :--- | :--- |
 | `01-config.yaml` | ConfigMap + Secret | Los demás Pods leen sus variables de aquí |
 | `02-databases.yaml` | PostgreSQL · MongoDB · MySQL (+ PVC) | Los servicios necesitan sus bases listas |
+| `02b-rabbitmq.yaml` | RabbitMQ (+ PVC) | Los servicios se hablan por sus colas |
 | `03-keycloak.yaml` | Identity Provider | Emite los tokens JWT |
 | `04-eureka.yaml` | Service Discovery | Todos se registran aquí al arrancar |
 | `05-microservices.yaml` | Pacientes · Historial · FastAPI | Se registran en Eureka |

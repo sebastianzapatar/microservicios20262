@@ -173,6 +173,7 @@ Los archivos están numerados en el orden en que deben aplicarse:
 | :--- | :--- | :--- |
 | `01-config.yaml` | `ConfigMap` + `Secret` | Los demás Pods leen sus variables de aquí |
 | `02-databases.yaml` | PostgreSQL, MongoDB, MySQL (+ sus `PVC` y `Service`) | Los microservicios necesitan sus bases listas |
+| `02b-rabbitmq.yaml` | RabbitMQ (+ su `PVC` y `Service`) | Los microservicios se hablan por sus colas |
 | `03-keycloak.yaml` | Keycloak (Identity Provider) | Emite los tokens JWT |
 | `04-eureka.yaml` | Eureka Server | Todos se registran aquí al arrancar |
 | `05-microservices.yaml` | Pacientes, Historial Médico y FastAPI | Se registran en Eureka |

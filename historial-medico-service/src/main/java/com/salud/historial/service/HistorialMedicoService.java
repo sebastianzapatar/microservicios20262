@@ -1,8 +1,8 @@
 package com.salud.historial.service;
 
-import com.salud.historial.client.PacienteClient;
 import com.salud.historial.dto.HistorialMedicoRequest;
 import com.salud.historial.dto.HistorialMedicoResponse;
+import com.salud.historial.messaging.HistorialEventoPublisher;
 import com.salud.historial.model.HistorialMedico;
 import com.salud.historial.repository.HistorialMedicoRepository;
 import lombok.RequiredArgsConstructor;
@@ -16,7 +16,8 @@ import java.util.List;
 public class HistorialMedicoService {
 
     private final HistorialMedicoRepository historialRepository;
-    private final PacienteClient pacienteClient;
+    private final PacienteValidador pacienteValidador;
+    private final HistorialEventoPublisher eventoPublisher;
 
     public List<HistorialMedicoResponse> listarTodos() {
         return historialRepository.findAll()
@@ -32,16 +33,24 @@ public class HistorialMedicoService {
     }
 
     /**
-     * Obtiene todos los historiales médicos de un paciente.
-     * Primero valida que el paciente existe llamando al microservicio
-     * de Pacientes via HTTP + Eureka.
+     * Obtiene todos los historiales médicos de un paciente, validando primero
+     * que el paciente existe (réplica local y, si no está, RPC por cola).
      */
     public List<HistorialMedicoResponse> obtenerPorPacienteId(Long pacienteId) {
-        // Comunicación inter-servicio: valida que el paciente existe
-        if (!pacienteClient.pacienteExiste(pacienteId)) {
+        if (!pacienteValidador.existe(pacienteId)) {
             throw new RuntimeException("Paciente no encontrado con ID: " + pacienteId);
         }
 
+        return listarPorPacienteSinValidar(pacienteId);
+    }
+
+    /**
+     * Igual que el anterior pero sin validar al paciente. Lo usa
+     * {@link com.salud.historial.messaging.HistorialRpcServer} para atender la
+     * cola "historial.rpc": quien pregunta es el dueño del dato del paciente, así
+     * que volver a validarlo dispararía un RPC de vuelta hacia él.
+     */
+    public List<HistorialMedicoResponse> listarPorPacienteSinValidar(Long pacienteId) {
         return historialRepository.findByPacienteId(pacienteId)
                 .stream()
                 .map(this::toResponse)
@@ -50,12 +59,14 @@ public class HistorialMedicoService {
 
     /**
      * Crea un nuevo historial médico.
-     * Valida que el paciente existe consultando al microservicio de Pacientes
-     * via HTTP + Eureka antes de crear el registro.
+     *
+     * Valida que el paciente existe contra la réplica local que alimentan los
+     * eventos "paciente.*" y, si aún no lo conoce, preguntando por RPC. Al
+     * terminar publica "historial.creado" para que los demás servicios se
+     * enteren.
      */
     public HistorialMedicoResponse crear(HistorialMedicoRequest request) {
-        // Comunicación inter-servicio: valida que el paciente existe
-        if (!pacienteClient.pacienteExiste(request.pacienteId())) {
+        if (!pacienteValidador.existe(request.pacienteId())) {
             throw new RuntimeException("No se puede crear historial: Paciente no encontrado con ID: " + request.pacienteId());
         }
 
@@ -70,6 +81,7 @@ public class HistorialMedicoService {
                 .build();
 
         HistorialMedico saved = historialRepository.save(historial);
+        eventoPublisher.publicarCreado(saved);
         return toResponse(saved);
     }
 
@@ -86,14 +98,21 @@ public class HistorialMedicoService {
         historial.setTipoConsulta(request.tipoConsulta());
 
         HistorialMedico updated = historialRepository.save(historial);
+        eventoPublisher.publicarActualizado(updated);
         return toResponse(updated);
     }
 
+    /**
+     * Se carga el documento completo (en lugar de existsById + deleteById) porque
+     * el evento "historial.eliminado" viaja con sus datos: quien lo consuma ya no
+     * puede ir a buscarlos, porque para entonces el documento ya no está.
+     */
     public void eliminar(String id) {
-        if (!historialRepository.existsById(id)) {
-            throw new RuntimeException("Historial médico no encontrado con ID: " + id);
-        }
+        HistorialMedico historial = historialRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Historial médico no encontrado con ID: " + id));
+
         historialRepository.deleteById(id);
+        eventoPublisher.publicarEliminado(historial);
     }
 
     private HistorialMedicoResponse toResponse(HistorialMedico historial) {

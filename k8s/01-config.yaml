@@ -18,6 +18,10 @@ data:
   # Los Services de Kubernetes crean estos nombres DNS dentro del clúster.
   EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "http://eureka-server:8761/eureka/"
 
+  # RabbitMQ: nombre del Service, resoluble por DNS desde cualquier Pod.
+  RABBITMQ_HOST: "rabbitmq-salud"
+  RABBITMQ_PORT: "5672"
+
   # ISSUER_URI: URL PÚBLICA de Keycloak. Es el valor del claim "iss" que viaja
   # dentro del token, y es contra el que los servicios comparan. Como el
   # tutorial accede a Keycloak con "kubectl port-forward ... 8080:8080",
@@ -40,5 +44,7 @@ stringData:
   MONGO_USER: "admin"
   MONGO_PASSWORD: "admin"
   MYSQL_ROOT_PASSWORD: "root"
+  RABBITMQ_USER: "admin"
+  RABBITMQ_PASSWORD: "admin123"
   KC_ADMIN: "admin"
   KC_ADMIN_PASSWORD: "admin"

@@ -20,7 +20,13 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<Map<String, Object>> handleRuntime(RuntimeException ex) {
         String mensaje = ex.getMessage() != null ? ex.getMessage() : "Error inesperado";
-        HttpStatus status = mensaje.contains("Ya existe")
+        // "no disponible" va PRIMERO y se traduce a 503: un servicio que no
+        // contesta por la cola no es lo mismo que un dato que no existe, y
+        // devolver 404 en ese caso haría creer al cliente que puede dejar de
+        // reintentar. Mismo criterio que en historial-medico-service.
+        HttpStatus status = mensaje.contains("no disponible")
+                ? HttpStatus.SERVICE_UNAVAILABLE
+                : mensaje.contains("Ya existe")
                 ? HttpStatus.CONFLICT
                 : mensaje.contains("no encontrado") ? HttpStatus.NOT_FOUND : HttpStatus.INTERNAL_SERVER_ERROR;
         return ResponseEntity.status(status).body(body(status, mensaje));

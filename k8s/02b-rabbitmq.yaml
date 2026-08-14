@@ -1,0 +1,104 @@
+# ==========================================
+# RABBITMQ (Mensajería entre microservicios)
+#
+# Va numerado "02b" para que quede entre las bases de datos y los
+# microservicios: "kubectl apply -f k8s/" respeta el orden alfabético, y los
+# tres servicios de negocio necesitan el broker levantado antes de arrancar.
+# ==========================================
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: rabbitmq-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rabbitmq-salud
+spec:
+  replicas: 1
+  # Recreate (y no el RollingUpdate por defecto): apaga el Pod viejo ANTES de
+  # crear el nuevo. Con RollingUpdate los dos coexistirían un instante, y aquí
+  # eso rompe por partida doble: el PVC es ReadWriteOnce (un solo Pod puede
+  # montarlo, el nuevo se quedaría en Pending) y ambos usarían el mismo
+  # RABBITMQ_NODENAME sobre el mismo directorio de datos.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: rabbitmq-salud
+  template:
+    metadata:
+      labels:
+        app: rabbitmq-salud
+    spec:
+      containers:
+      - name: rabbitmq
+        # La variante "-management" trae la consola web (puerto 15672). Para
+        # abrirla: kubectl port-forward svc/rabbitmq-salud 15672:15672
+        image: rabbitmq:4-management-alpine
+        env:
+        - name: RABBITMQ_DEFAULT_USER
+          valueFrom:
+            secretKeyRef:
+              name: salud-secrets
+              key: RABBITMQ_USER
+        - name: RABBITMQ_DEFAULT_PASS
+          valueFrom:
+            secretKeyRef:
+              name: salud-secrets
+              key: RABBITMQ_PASSWORD
+        # RabbitMQ guarda su estado en un directorio derivado del nombre del
+        # nodo. Por defecto usa el hostname del Pod, que cambia en cada
+        # recreación: el volumen quedaría lleno de directorios huérfanos y las
+        # colas durables "desaparecerían". Con un nombre fijo siempre reencuentra
+        # sus datos.
+        - name: RABBITMQ_NODENAME
+          value: rabbit@rabbitmq-salud
+        ports:
+        - containerPort: 5672   # AMQP
+        - containerPort: 15672  # consola web
+        readinessProbe:
+          exec:
+            command: ["rabbitmq-diagnostics", "-q", "check_port_connectivity"]
+          initialDelaySeconds: 20
+          periodSeconds: 10
+          failureThreshold: 12
+        livenessProbe:
+          exec:
+            command: ["rabbitmq-diagnostics", "-q", "check_running"]
+          initialDelaySeconds: 60
+          periodSeconds: 30
+        volumeMounts:
+        - name: rabbitmq-data
+          mountPath: /var/lib/rabbitmq
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "768Mi"
+      volumes:
+      - name: rabbitmq-data
+        persistentVolumeClaim:
+          claimName: rabbitmq-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rabbitmq-salud
+spec:
+  selector:
+    app: rabbitmq-salud
+  ports:
+    - name: amqp
+      port: 5672
+      targetPort: 5672
+    - name: management
+      port: 15672
+      targetPort: 15672

@@ -47,6 +47,28 @@ spec:
             configMapKeyRef:
               name: salud-config
               key: SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI
+        # RabbitMQ: publica eventos "paciente.*", consume "historial.*" y atiende
+        # la cola RPC "pacientes.rpc".
+        - name: SPRING_RABBITMQ_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: salud-config
+              key: RABBITMQ_HOST
+        - name: SPRING_RABBITMQ_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: salud-config
+              key: RABBITMQ_PORT
+        - name: SPRING_RABBITMQ_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: salud-secrets
+              key: RABBITMQ_USER
+        - name: SPRING_RABBITMQ_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: salud-secrets
+              key: RABBITMQ_PASSWORD
         ports:
         - containerPort: 8081
         readinessProbe:
@@ -136,6 +158,28 @@ spec:
             configMapKeyRef:
               name: salud-config
               key: SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI
+        # RabbitMQ: publica eventos "historial.*", consume "paciente.*" y atiende
+        # la cola RPC "historial.rpc".
+        - name: SPRING_RABBITMQ_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: salud-config
+              key: RABBITMQ_HOST
+        - name: SPRING_RABBITMQ_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: salud-config
+              key: RABBITMQ_PORT
+        - name: SPRING_RABBITMQ_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: salud-secrets
+              key: RABBITMQ_USER
+        - name: SPRING_RABBITMQ_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: salud-secrets
+              key: RABBITMQ_PASSWORD
         ports:
         - containerPort: 8082
         readinessProbe:
@@ -226,6 +270,28 @@ spec:
           value: mongo-salud
         - name: MYSQL_HOST
           value: mysql-salud
+        # RabbitMQ: consume "paciente.*" y "historial.*" en la cola
+        # "fastapi.eventos", y pregunta por RPC a "pacientes.rpc".
+        - name: RABBITMQ_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: salud-config
+              key: RABBITMQ_HOST
+        - name: RABBITMQ_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: salud-config
+              key: RABBITMQ_PORT
+        - name: RABBITMQ_USER
+          valueFrom:
+            secretKeyRef:
+              name: salud-secrets
+              key: RABBITMQ_USER
+        - name: RABBITMQ_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: salud-secrets
+              key: RABBITMQ_PASSWORD
         # py-eureka-client se anuncia por defecto con el hostname del Pod, que
         # NO es resoluble por DNS en Kubernetes. Se inyecta la IP del Pod con la
         # Downward API para que el Gateway pueda alcanzar este servicio.

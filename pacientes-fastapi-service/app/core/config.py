@@ -1,4 +1,5 @@
 import os
+from urllib.parse import quote
 
 class Settings:
     # App
@@ -27,6 +28,20 @@ class Settings:
     MONGO_HOST: str = os.getenv("MONGO_HOST", "mongo-salud")
     MONGO_PORT: str = os.getenv("MONGO_PORT", "27017")
     MONGO_URI: str = f"mongodb://{MONGO_USER}:{MONGO_PASSWORD}@{MONGO_HOST}:{MONGO_PORT}/{MONGO_DB}?authSource=admin"
+
+    # RabbitMQ. El puerto es el INTERNO del contenedor (5672), no el publicado
+    # hacia el host: este servicio se conecta desde dentro de la red de Docker.
+    RABBITMQ_HOST: str = os.getenv("RABBITMQ_HOST", "rabbitmq-salud")
+    RABBITMQ_PORT: str = os.getenv("RABBITMQ_PORT", "5672")
+    RABBITMQ_USER: str = os.getenv("RABBITMQ_USER", "guest")
+    RABBITMQ_PASSWORD: str = os.getenv("RABBITMQ_PASSWORD", "guest")
+    # quote() escapa los caracteres que tienen significado dentro de una URL.
+    # Sin él, una contraseña con "@", "/" o ":" partiría la URL en dos y el
+    # error que se ve es un "login refused" que no apunta a la causa real.
+    RABBITMQ_URL: str = (
+        f"amqp://{quote(RABBITMQ_USER, safe='')}:{quote(RABBITMQ_PASSWORD, safe='')}"
+        f"@{RABBITMQ_HOST}:{RABBITMQ_PORT}/"
+    )
 
     # Security (JWT Propio para este microservicio)
     SECRET_KEY: str = os.getenv("SECRET_KEY", "super-secret-key-fastapi-mysql")

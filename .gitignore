@@ -50,8 +50,11 @@ target/
 *.iws
 
 # Environment variables
+# El patrón cubre también copias como ".env.bak", ".env.local" o ".env.prod":
+# basta una para filtrar contraseñas reales al repositorio.
+# env.template NO empieza por punto, así que se sigue versionando.
 .env
-.env.local
+.env.*
 
 # OS generated files
 .DS_Store

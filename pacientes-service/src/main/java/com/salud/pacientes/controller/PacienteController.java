@@ -34,13 +34,25 @@ public class PacienteController {
     }
 
     /**
-     * Endpoint que demuestra la comunicación inter-servicio.
-     * Obtiene los datos del paciente junto con su historial médico
-     * llamando al microservicio de Historial Médico via HTTP + Eureka.
+     * Comunicación inter-servicio por RPC sobre RabbitMQ.
+     * Pregunta el historial por la cola "historial.rpc" y espera la respuesta.
+     * Dato fresco, pero requiere que el otro servicio esté escuchando.
      */
     @GetMapping("/{id}/historial")
     public ResponseEntity<PacienteService.PacienteConHistorialResponse> obtenerConHistorial(@PathVariable Long id) {
         return ResponseEntity.ok(pacienteService.obtenerPacienteConHistorial(id));
+    }
+
+    /**
+     * Comunicación inter-servicio por eventos.
+     * Lee la réplica local que mantienen los eventos "historial.*", sin salir a
+     * la red. Compara este endpoint con el anterior para ver el contraste entre
+     * los dos patrones: este responde aunque el otro microservicio esté caído,
+     * pero puede ir unos milisegundos por detrás.
+     */
+    @GetMapping("/{id}/resumen")
+    public ResponseEntity<PacienteService.PacienteConResumenResponse> obtenerConResumenLocal(@PathVariable Long id) {
+        return ResponseEntity.ok(pacienteService.obtenerPacienteConResumenLocal(id));
     }
 
     @PostMapping

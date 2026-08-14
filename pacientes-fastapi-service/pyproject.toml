@@ -19,6 +19,9 @@ dependencies = [
     "SQLAlchemy==2.0.25",
     "cryptography==42.0.2",
     "email-validator==2.1.1",
+    # Cliente AMQP asíncrono para RabbitMQ. Se usa aio-pika (y no pika) porque
+    # el resto del servicio es async: pika bloquea el event loop.
+    "aio-pika==10.0.1",
 ]
 
 # El proyecto es una aplicación, no una librería que se deba empaquetar e
