@@ -3,11 +3,11 @@ services:
     image: postgres:16-alpine
     container_name: postgres-salud
     environment:
-      POSTGRES_DB: pacientes_db
-      POSTGRES_USER: admin
-      POSTGRES_PASSWORD: admin123
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
@@ -17,11 +17,11 @@ services:
     image: mongo:7
     container_name: mongo-salud
     environment:
-      MONGO_INITDB_ROOT_USERNAME: admin
-      MONGO_INITDB_ROOT_PASSWORD: admin123
-      MONGO_INITDB_DATABASE: historial_medico_db
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD}
+      MONGO_INITDB_DATABASE: ${MONGO_DB}
     ports:
-      - "27017:27017"
+      - "${MONGO_PORT}:27017"
     volumes:
       - mongo_data:/data/db
     networks:
@@ -31,15 +31,79 @@ services:
     image: quay.io/keycloak/keycloak:25.0
     container_name: keycloak-salud
     environment:
-      KC_DB: dev-mem
-      KEYCLOAK_ADMIN: admin
-      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_DB: ${KC_DB}
+      KEYCLOAK_ADMIN: ${KC_ADMIN}
+      KEYCLOAK_ADMIN_PASSWORD: ${KC_ADMIN_PASSWORD}
       KC_HEALTH_ENABLED: "true"
     command: start-dev --import-realm
     ports:
-      - "8080:8080"
+      - "${KC_PORT}:8080"
     volumes:
       - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json
+    networks:
+      - salud-network
+
+  eureka-server:
+    build:
+      context: ./eureka-server
+      dockerfile: Dockerfile
+    container_name: eureka-server
+    ports:
+      - "${EUREKA_PORT}:8761"
+    networks:
+      - salud-network
+
+  gateway-service:
+    build:
+      context: ./gateway-service
+      dockerfile: Dockerfile
+    container_name: gateway-service
+    ports:
+      - "${GATEWAY_PORT}:8090"
+    environment:
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-server:8761/eureka/
+      - SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI=http://keycloak-salud:8080/realms/salud-system
+    depends_on:
+      - eureka-server
+      - keycloak
+    networks:
+      - salud-network
+
+  pacientes-service:
+    build:
+      context: ./pacientes-service
+      dockerfile: Dockerfile
+    container_name: pacientes-service
+    ports:
+      - "${PACIENTES_PORT}:8081"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-salud:5432/${POSTGRES_DB}
+      - SPRING_DATASOURCE_USERNAME=${POSTGRES_USER}
+      - SPRING_DATASOURCE_PASSWORD=${POSTGRES_PASSWORD}
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-server:8761/eureka/
+      - SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI=http://keycloak-salud:8080/realms/salud-system
+    depends_on:
+      - postgres
+      - eureka-server
+      - keycloak
+    networks:
+      - salud-network
+
+  historial-medico-service:
+    build:
+      context: ./historial-medico-service
+      dockerfile: Dockerfile
+    container_name: historial-medico-service
+    ports:
+      - "${HISTORIAL_PORT}:8082"
+    environment:
+      - SPRING_DATA_MONGODB_URI=mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongo-salud:27017/${MONGO_DB}?authSource=admin
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-server:8761/eureka/
+      - SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI=http://keycloak-salud:8080/realms/salud-system
+    depends_on:
+      - mongodb
+      - eureka-server
+      - keycloak
     networks:
       - salud-network
 

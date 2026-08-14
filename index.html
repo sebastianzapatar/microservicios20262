@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arquitectura de Microservicios — Sistema de Salud | Universidad EIA</title>
+    <meta name="description" content="Presentación de la arquitectura del sistema de microservicios para gestión de salud. Spring Boot 4.1, Spring Cloud, Keycloak, MongoDB y PostgreSQL.">
+    <link rel="icon" href="https://www.eia.edu.co/wp-content/uploads/2024/05/Favicon-new-100x100.webp">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&family=Roboto+Slab:wght@400;500;700&family=Roboto:wght@300;400;500;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+        :root{
+            --p:#21B8D2;--pd:#1a95a8;--pl:#4dd4ec;
+            --a:#61CE70;--ad:#4cb85a;
+            --s:#54595F;--t:#7A7A7A;
+            --bg:#0d1117;--card:#161b22;--brd:rgba(33,184,210,.15);--glow:rgba(33,184,210,.3);
+            --fh:'Poppins',sans-serif;--fb:'Roboto',sans-serif;--fs:'Roboto Slab',serif;--fc:'Fira Code',monospace;
+        }
+        html,body{width:100%;height:100%;overflow:hidden;font-family:var(--fb);background:var(--bg);color:#fff;-webkit-font-smoothing:antialiased}
+        .slide{position:absolute;top:0;left:0;width:100%;height:100%;display:flex;flex-direction:column;justify-content:center;align-items:center;padding:50px 70px 70px;opacity:0;transform:translateX(80px);transition:all .55s cubic-bezier(.4,0,.2,1);pointer-events:none;overflow-y:auto}
+        .slide.active{opacity:1;transform:translateX(0);pointer-events:all}
+        .slide.prev{opacity:0;transform:translateX(-80px)}
+        .slide::before{content:'';position:absolute;inset:0;pointer-events:none;z-index:0}
+        .slide>*{position:relative;z-index:1}
+        .bg-grid::before{background-image:linear-gradient(rgba(33,184,210,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(33,184,210,.03) 1px,transparent 1px);background-size:60px 60px}
+        .bg-dots::before{background-image:radial-gradient(circle,rgba(33,184,210,.08) 1px,transparent 1px);background-size:30px 30px}
+        .bg-grad::before{background:radial-gradient(ellipse at 20% 50%,rgba(33,184,210,.08) 0%,transparent 60%),radial-gradient(ellipse at 80% 20%,rgba(97,206,112,.06) 0%,transparent 50%)}
+        .st{font-family:var(--fh);font-size:clamp(1.8rem,3.5vw,3.2rem);font-weight:800;line-height:1.15;margin-bottom:10px;letter-spacing:-.02em}
+        .st .hi{background:linear-gradient(135deg,var(--p),var(--a));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+        .ss{font-family:var(--fs);font-size:clamp(.9rem,1.6vw,1.3rem);color:var(--t);font-weight:400;margin-bottom:36px;max-width:700px;text-align:center;line-height:1.6}
+        h2.tt{font-family:var(--fh);font-size:clamp(1.4rem,2.8vw,2.2rem);font-weight:700;margin-bottom:6px;color:#fff}
+        h2.tt .n{color:var(--p);font-weight:800}
+        .sd{font-size:clamp(.85rem,1.2vw,1.05rem);color:var(--t);margin-bottom:30px;max-width:800px;line-height:1.6;text-align:center}
+        .cg{display:grid;gap:16px;width:100%;max-width:1100px}
+        .cg.c2{grid-template-columns:1fr 1fr}.cg.c3{grid-template-columns:1fr 1fr 1fr}.cg.c4{grid-template-columns:1fr 1fr 1fr 1fr}
+        .cd{background:var(--card);border:1px solid var(--brd);border-radius:14px;padding:22px;transition:all .3s;position:relative;overflow:hidden}
+        .cd::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--p),var(--a));opacity:0;transition:opacity .3s}
+        .cd:hover{border-color:rgba(33,184,210,.3);transform:translateY(-3px);box-shadow:0 6px 24px rgba(33,184,210,.1)}
+        .cd:hover::before{opacity:1}
+        .ci{font-size:2rem;margin-bottom:10px;display:block}.cn{font-family:var(--fh);font-size:1rem;font-weight:600;color:#fff;margin-bottom:6px}.ct{font-size:.84rem;color:var(--t);line-height:1.5}
+        .bd{display:inline-block;padding:3px 10px;border-radius:18px;font-size:.72rem;font-weight:600;font-family:var(--fh);letter-spacing:.03em}
+        .bp{background:rgba(33,184,210,.15);color:var(--p);border:1px solid rgba(33,184,210,.3)}
+        .ba{background:rgba(97,206,112,.15);color:var(--a);border:1px solid rgba(97,206,112,.3)}
+        .bo{background:rgba(255,165,0,.15);color:#ffa500;border:1px solid rgba(255,165,0,.3)}
+        .bv{background:rgba(155,81,224,.15);color:#b388ff;border:1px solid rgba(155,81,224,.3)}
+        .br{background:rgba(255,100,100,.15);color:#ff6464;border:1px solid rgba(255,100,100,.3)}
+        .sl{display:grid;grid-template-columns:1fr 1fr;gap:36px;width:100%;max-width:1100px;align-items:start}
+        .fl{list-style:none;display:flex;flex-direction:column;gap:10px}
+        .fl li{display:flex;align-items:flex-start;gap:10px;font-size:.88rem;color:#c9d1d9;line-height:1.5}
+        .fl li .ic{color:var(--a);font-size:1.1rem;flex-shrink:0;margin-top:2px}
+        .cb{background:#0d1117;border:1px solid var(--brd);border-radius:11px;padding:18px 20px;font-family:var(--fc);font-size:.78rem;line-height:1.6;color:#c9d1d9;overflow-x:auto;width:100%}
+        .cb .kw{color:#ff7b72}.cb .str{color:#a5d6ff}.cb .cmt{color:#8b949e}.cb .an{color:#d2a8ff}.cb .tp{color:#79c0ff}.cb .mt{color:#d2a8ff}
+        .ch{display:flex;align-items:center;gap:7px;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid rgba(33,184,210,.1)}
+        .ch .d{width:9px;height:9px;border-radius:50%}.ch .dr{background:#ff5f57}.ch .dy{background:#febc2e}.ch .dg{background:#28c840}
+        .ch .fn{font-size:.72rem;color:var(--t);margin-left:8px}
+        .tbl{width:100%;max-width:900px;border-collapse:collapse;font-size:.88rem}
+        .tbl thead th{font-family:var(--fh);font-weight:600;font-size:.78rem;text-transform:uppercase;letter-spacing:.05em;color:var(--p);padding:10px 14px;text-align:left;border-bottom:2px solid var(--brd)}
+        .tbl tbody td{padding:10px 14px;border-bottom:1px solid rgba(33,184,210,.06);color:#c9d1d9}
+        .tbl tbody tr:hover{background:rgba(33,184,210,.04)}
+        .fs{display:flex;gap:0;align-items:flex-start;max-width:1100px;width:100%;flex-wrap:nowrap}
+        .fst{flex:1;text-align:center;padding:14px 10px;position:relative}
+        .fst::after{content:'→';position:absolute;right:-6px;top:26px;color:var(--p);font-size:1.2rem;opacity:.4}
+        .fst:last-child::after{display:none}
+        .fst .sn{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--p),var(--a));color:#fff;display:flex;align-items:center;justify-content:center;font-family:var(--fh);font-weight:700;font-size:.85rem;margin:0 auto 8px}
+        .fst .stt{font-family:var(--fh);font-size:.82rem;font-weight:600;color:#fff;margin-bottom:4px}
+        .fst .std{font-size:.72rem;color:var(--t);line-height:1.45}
+        .an{position:relative}.an .node{background:var(--card);border:2px solid var(--brd);border-radius:14px;padding:16px 24px;text-align:center;min-width:170px;transition:all .3s}
+        .an .node:hover{transform:scale(1.05);border-color:var(--p);box-shadow:0 0 22px var(--glow)}
+        .an .node .ni{font-size:1.8rem;margin-bottom:6px}.an .node .nn{font-family:var(--fh);font-size:.9rem;font-weight:600;margin-bottom:3px}
+        .an .node .nd{font-size:.72rem;color:var(--t)}.an .node .np{font-family:var(--fc);font-size:.68rem;color:var(--p);margin-top:5px;padding:2px 8px;background:rgba(33,184,210,.1);border-radius:8px;display:inline-block}
+        .db-logo{width:42px;height:42px;border-radius:10px;object-fit:cover;margin-bottom:6px}
+        .el{list-style:none;display:flex;flex-direction:column;gap:7px}
+        .ei{display:flex;align-items:center;gap:9px;padding:7px 12px;background:rgba(13,17,23,.6);border:1px solid var(--brd);border-radius:7px;font-family:var(--fc);font-size:.76rem}
+        .em{font-weight:700;padding:2px 7px;border-radius:4px;font-size:.68rem;min-width:46px;text-align:center}
+        .em.get{background:rgba(97,206,112,.15);color:var(--a)}.em.post{background:rgba(33,184,210,.15);color:var(--p)}.em.put{background:rgba(255,165,0,.15);color:#ffa500}.em.del{background:rgba(255,100,100,.15);color:#ff6464}
+        .ep{color:#c9d1d9}.ed{color:var(--t);margin-left:auto;font-family:var(--fb);font-size:.72rem}
+        .conn-h{width:40px;height:2px;background:linear-gradient(90deg,var(--p),var(--a));opacity:.4}
+        .conn-v{width:2px;height:24px;background:linear-gradient(to bottom,var(--p),transparent);margin:0 auto;opacity:.3}
+        .nav{position:fixed;bottom:0;left:0;right:0;height:52px;background:rgba(13,17,23,.95);backdrop-filter:blur(16px);border-top:1px solid var(--brd);display:flex;align-items:center;justify-content:space-between;padding:0 28px;z-index:1000}
+        .nav .nl{display:flex;align-items:center;gap:10px}
+        .nav .nl img{height:28px;filter:brightness(1.1)}
+        .nav .nl .ns{color:rgba(255,255,255,.15)}.nav .nl .nt{font-size:.78rem;color:var(--t)}
+        .nav .nc{display:flex;align-items:center;gap:5px}
+        .nav .nd{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.15);transition:all .3s;cursor:pointer}
+        .nav .nd.act{background:var(--p);box-shadow:0 0 8px var(--glow);width:20px;border-radius:4px}
+        .nav .nr{display:flex;align-items:center;gap:14px}
+        .nav .nr .nc2{font-family:var(--fc);font-size:.78rem;color:var(--t)}
+        .nb{width:34px;height:34px;border-radius:7px;border:1px solid var(--brd);background:transparent;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;font-size:1rem}
+        .nb:hover{background:rgba(33,184,210,.1);border-color:var(--p)}.nb:active{transform:scale(.95)}
+        .pb{position:fixed;top:0;left:0;height:3px;background:linear-gradient(90deg,var(--p),var(--a));transition:width .4s cubic-bezier(.4,0,.2,1);z-index:1001;box-shadow:0 0 8px var(--glow)}
+        .kbd{font-family:var(--fc);font-size:.62rem;padding:2px 5px;border-radius:3px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--t)}
+        @keyframes fadeInUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+        @keyframes pulse{0%,100%{box-shadow:0 0 0 rgba(33,184,210,0)}50%{box-shadow:0 0 16px var(--glow)}}
+        .af{animation:float 3s ease-in-out infinite}.ap{animation:pulse 2s ease-in-out infinite}
+        .slide.active .fi{animation:fadeInUp .5s ease forwards}
+        .slide.active .fd1{animation-delay:.1s;opacity:0}.slide.active .fd2{animation-delay:.2s;opacity:0}.slide.active .fd3{animation-delay:.3s;opacity:0}.slide.active .fd4{animation-delay:.4s;opacity:0}
+        .vs-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;width:100%;max-width:1000px}
+        .vs-col h3{font-family:var(--fh);font-size:1.1rem;font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+        .vs-col .vs-items{list-style:none;display:flex;flex-direction:column;gap:10px}
+        .vs-col .vs-items li{display:flex;align-items:flex-start;gap:10px;font-size:.86rem;color:#c9d1d9;line-height:1.5;padding:10px 14px;background:var(--card);border:1px solid var(--brd);border-radius:10px}
+        .vs-col .vs-items li .vi{font-size:1.2rem;flex-shrink:0}
+        @media(max-width:900px){.slide{padding:36px 24px 60px}.cg.c3,.cg.c4{grid-template-columns:1fr 1fr}.sl,.vs-grid{grid-template-columns:1fr}.fs{flex-wrap:wrap}}
+    </style>
+</head>
+<body>
+<div class="pb" id="pb" style="width:0%"></div>
+<div id="pres">
+
+<!-- SLIDE 1: PORTADA -->
+<div class="slide active bg-grad" data-s="0">
+<div style="text-align:center">
+    <img src="https://www.eia.edu.co/wp-content/uploads/2024/05/Favicon-new-300x300.webp" alt="Escudo Universidad EIA" style="width:80px;height:80px;margin-bottom:20px;border-radius:16px;box-shadow:0 4px 20px rgba(33,184,210,.2);" class="fi">
+    <div class="bd bp fi fd1" style="margin-bottom:18px">Universidad EIA · Implementación 2026-2</div>
+    <h1 class="st fi fd2" style="max-width:800px">Arquitectura de<br><span class="hi">Microservicios</span></h1>
+    <p class="ss fi fd3">Sistema de Gestión de Salud construido con Spring Boot 4.1, Spring Cloud, Eureka, Keycloak, MongoDB y PostgreSQL</p>
+    <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap" class="fi fd4">
+        <span class="bd bp">Spring Boot 4.1</span><span class="bd ba">Spring Cloud 2025.1</span><span class="bd bo">Keycloak OAuth2</span><span class="bd bv">Gradle 9.7</span>
+    </div>
+    <p style="margin-top:36px;font-size:.78rem;color:var(--t)" class="fi fd4">Usa <span class="kbd">←</span> <span class="kbd">→</span> o <span class="kbd">Space</span> para navegar</p>
+</div>
+</div>
+
+<!-- SLIDE 2: ¿QUÉ SON MICROSERVICIOS? -->
+<div class="slide bg-grid" data-s="1">
+<h2 class="tt fi"><span class="n">01.</span> ¿Qué son los Microservicios?</h2>
+<p class="sd fi fd1">Un estilo arquitectónico que estructura una aplicación como un conjunto de servicios pequeños, autónomos y desplegables de forma independiente, cada uno ejecutándose en su propio proceso y comunicándose a través de mecanismos ligeros como HTTP/REST.</p>
+<div class="cg c3 fi fd2">
+    <div class="cd" style="text-align:center"><span class="ci">🧩</span><div class="cn">Independientes</div><div class="ct">Cada servicio se desarrolla, despliega y escala de forma autónoma sin afectar a los demás</div></div>
+    <div class="cd" style="text-align:center"><span class="ci">🔗</span><div class="cn">Comunicación Ligera</div><div class="ct">Se comunican via HTTP/REST, mensajería o eventos. Contratos claros entre servicios</div></div>
+    <div class="cd" style="text-align:center"><span class="ci">🗄️</span><div class="cn">Base de Datos Propia</div><div class="ct">Cada servicio gestiona su propia base de datos (polyglot persistence)</div></div>
+    <div class="cd" style="text-align:center"><span class="ci">🚀</span><div class="cn">Despliegue Independiente</div><div class="ct">Se puede actualizar un servicio sin redesplegar toda la aplicación</div></div>
+    <div class="cd" style="text-align:center"><span class="ci">📐</span><div class="cn">Dominio Acotado</div><div class="ct">Cada servicio encapsula una responsabilidad de negocio específica (Bounded Context)</div></div>
+    <div class="cd" style="text-align:center"><span class="ci">⚡</span><div class="cn">Escalabilidad Selectiva</div><div class="ct">Se escala solo el servicio que lo necesita, optimizando recursos</div></div>
+</div>
+</div>
+
+<!-- SLIDE 3: CUÁNDO USAR / NO USAR -->
+<div class="slide bg-dots" data-s="2">
+<h2 class="tt fi"><span class="n">02.</span> ¿Cuándo usar y cuándo NO usar Microservicios?</h2>
+<p class="sd fi fd1">Los microservicios no son una solución universal. Es crucial entender cuándo aportan valor y cuándo añaden complejidad innecesaria.</p>
+<div class="vs-grid fi fd2">
+    <div class="vs-col">
+        <h3 style="color:var(--a)">✅ Cuándo SÍ usarlos</h3>
+        <ul class="vs-items">
+            <li><span class="vi">📈</span><div><strong>Escalabilidad diferenciada</strong> — Cuando partes del sistema necesitan escalar independientemente (ej: el servicio de historiales crece más que el de pacientes)</div></li>
+            <li><span class="vi">👥</span><div><strong>Equipos grandes</strong> — Múltiples equipos trabajando en paralelo, cada uno dueño de un servicio</div></li>
+            <li><span class="vi">🔄</span><div><strong>Despliegues frecuentes</strong> — Necesidad de actualizar partes del sistema sin afectar el resto</div></li>
+            <li><span class="vi">🛡️</span><div><strong>Aislamiento de fallos</strong> — Si un servicio falla, los demás siguen funcionando</div></li>
+            <li><span class="vi">🗄️</span><div><strong>Tecnologías heterogéneas</strong> — Diferentes servicios pueden usar diferentes bases de datos o lenguajes</div></li>
+        </ul>
+    </div>
+    <div class="vs-col">
+        <h3 style="color:#ff6464">❌ Cuándo NO usarlos</h3>
+        <ul class="vs-items">
+            <li><span class="vi">🏗️</span><div><strong>Proyectos pequeños</strong> — Un CRUD simple no justifica la complejidad de múltiples servicios</div></li>
+            <li><span class="vi">👤</span><div><strong>Equipos pequeños</strong> — Un equipo de 2-3 personas mantiene mejor un monolito</div></li>
+            <li><span class="vi">🧪</span><div><strong>MVPs y prototipos</strong> — Cuando aún no se conoce bien el dominio, un monolito es más ágil</div></li>
+            <li><span class="vi">💰</span><div><strong>Recursos limitados</strong> — La infraestructura distribuida cuesta más (DevOps, monitoreo, etc.)</div></li>
+            <li><span class="vi">🔗</span><div><strong>Alta cohesión de datos</strong> — Cuando todos los datos están muy acoplados y las transacciones son críticas</div></li>
+        </ul>
+    </div>
+</div>
+</div>
+
+<!-- SLIDE 4: TODO SE CONECTA CON TODO -->
+<div class="slide bg-grad" data-s="3">
+<h2 class="tt fi"><span class="n">03.</span> Todo se Conecta con Todo</h2>
+<p class="sd fi fd1">En esta arquitectura, cada componente tiene un rol específico y todos se interconectan para formar un sistema cohesivo y resiliente.</p>
+<div class="cg c2 fi fd2" style="max-width:1000px">
+    <div class="cd"><span class="ci">🔐 → 🌐 → 🏥📋</span><div class="cn">Keycloak → Gateway → Servicios</div><div class="ct">Keycloak emite JWT. El Gateway valida el token y enruta. Los servicios verifican el JWT de forma independiente.</div></div>
+    <div class="cd"><span class="ci">📡 ← 🌐🏥📋</span><div class="cn">Eureka ← Todos los Servicios</div><div class="ct">Cada servicio se registra en Eureka al arrancar. El Gateway y los servicios consultan Eureka para descubrir a otros.</div></div>
+    <div class="cd"><span class="ci">🏥 ↔ 📋</span><div class="cn">Pacientes ↔ Historial Médico</div><div class="ct">Comunicación HTTP directa. Pacientes consulta historiales, Historial valida pacientes. JWT propagado.</div></div>
+    <div class="cd"><span class="ci">🐘 ← 🏥</span><div class="cn">PostgreSQL ← Pacientes Service</div><div class="ct">Datos estructurados y transaccionales con JPA/Hibernate. Esquema definido con entidades @Entity.</div></div>
+    <div class="cd"><span class="ci">🍃 ← 📋</span><div class="cn">MongoDB ← Historial Médico Service</div><div class="ct">Documentos flexibles con Spring Data MongoDB. Ideal para datos clínicos con estructura variable.</div></div>
+    <div class="cd"><span class="ci">🐳 → 🐘🍃🔐</span><div class="cn">Docker Compose → Infraestructura</div><div class="ct">Un solo comando levanta PostgreSQL, MongoDB y Keycloak. Todo preconfigurado para desarrollo local.</div></div>
+</div>
+</div>
+
+<!-- SLIDE 5: VISIÓN GENERAL -->
+<div class="slide bg-grid" data-s="4">
+<h2 class="tt fi"><span class="n">04.</span> Los 4 Servicios del Sistema</h2>
+<p class="sd fi fd1">El sistema se compone de 4 servicios Spring Boot que se registran en Eureka y se comunican via HTTP con seguridad JWT.</p>
+<div class="cg c4 fi fd2">
+    <div class="cd" style="text-align:center"><span class="ci">📡</span><div class="cn">Eureka Server</div><div class="ct">Registro y descubrimiento automático de servicios</div><div style="margin-top:8px"><span class="bd ba">Puerto 8761</span></div></div>
+    <div class="cd" style="text-align:center"><span class="ci">🌐</span><div class="cn">API Gateway</div><div class="ct">Punto de entrada único, enruta via Eureka con load balancing</div><div style="margin-top:8px"><span class="bd bp">Puerto 8090</span></div></div>
+    <div class="cd" style="text-align:center"><span class="ci">🏥</span><div class="cn">Pacientes Service</div><div class="ct">CRUD pacientes con PostgreSQL, llama a Historial</div><div style="margin-top:8px"><span class="bd bv">Puerto 8081</span></div></div>
+    <div class="cd" style="text-align:center"><span class="ci">📋</span><div class="cn">Historial Médico</div><div class="ct">Historiales en MongoDB, valida pacientes via HTTP</div><div style="margin-top:8px"><span class="bd bo">Puerto 8082</span></div></div>
+</div>
+</div>
+
+<!-- SLIDE 6: ARQUITECTURA -->
+<div class="slide bg-dots" data-s="5">
+<h2 class="tt fi"><span class="n">05.</span> Diagrama de Arquitectura</h2>
+<p class="sd fi fd1">Flujo: cliente → Keycloak (JWT) → Gateway → Servicios via Eureka → Comunicación inter-servicio con JWT propagado.</p>
+<div style="display:flex;flex-direction:column;align-items:center;gap:16px;max-width:1000px;width:100%" class="fi fd2">
+    <div style="display:flex;gap:20px;align-items:center;justify-content:center;width:100%">
+        <div class="an"><div class="node af" style="border-color:rgba(255,165,0,.4);animation-delay:.5s"><div class="ni">🔐</div><div class="nn">Keycloak</div><div class="nd">OAuth2 / JWT</div><div class="np">:8080</div></div></div>
+        <div class="conn-h"></div>
+        <div class="an"><div class="node ap" style="border-color:rgba(33,184,210,.4)"><div class="ni">🌐</div><div class="nn">API Gateway</div><div class="nd">Spring Cloud Gateway</div><div class="np">:8090</div></div></div>
+        <div class="conn-h"></div>
+        <div class="an"><div class="node af" style="border-color:rgba(97,206,112,.4);animation-delay:1s"><div class="ni">📡</div><div class="nn">Eureka Server</div><div class="nd">Service Discovery</div><div class="np">:8761</div></div></div>
+    </div>
+    <div style="display:flex;gap:180px"><div class="conn-v"></div><div class="conn-v"></div></div>
+    <div style="display:flex;gap:20px;align-items:center;justify-content:center">
+        <div class="an"><div class="node" style="border-color:rgba(100,150,255,.4);min-width:220px"><div style="display:flex;align-items:center;gap:8px;justify-content:center;margin-bottom:6px"><img src="img/postgresql.jpg" alt="PostgreSQL" class="db-logo"></div><div class="nn">Pacientes Service</div><div class="nd">Spring Boot 4.1 + JPA</div><div class="np">:8081 · PostgreSQL</div></div></div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:3px"><div style="font-size:.68rem;color:var(--t);font-family:var(--fc)">HTTP + JWT</div><div style="display:flex;align-items:center;gap:3px"><span style="color:var(--p)">←</span><div style="width:50px;height:2px;background:linear-gradient(90deg,var(--p),var(--a));border-radius:1px"></div><span style="color:var(--a)">→</span></div><div style="font-size:.62rem;color:var(--t)">via Eureka</div></div>
+        <div class="an"><div class="node" style="border-color:rgba(0,237,100,.4);min-width:220px"><div style="display:flex;align-items:center;gap:8px;justify-content:center;margin-bottom:6px"><img src="img/mongodb.jpg" alt="MongoDB" class="db-logo"></div><div class="nn">Historial Médico</div><div class="nd">Spring Boot 4.1 + MongoDB</div><div class="np">:8082 · MongoDB</div></div></div>
+    </div>
+</div>
+</div>
+
+<!-- SLIDE 7: STACK -->
+<div class="slide bg-grid" data-s="6">
+<h2 class="tt fi"><span class="n">06.</span> Stack Tecnológico</h2>
+<p class="sd fi fd1">Tecnologías y versiones utilizadas en el sistema.</p>
+<table class="tbl fi fd2">
+    <thead><tr><th>Componente</th><th>Tecnología</th><th>Versión</th><th>Propósito</th></tr></thead>
+    <tbody>
+        <tr><td>⚡ Framework</td><td><strong style="color:var(--a)">Spring Boot</strong></td><td><code style="font-family:var(--fc);color:var(--p)">4.1.0</code></td><td>Framework base para todos los servicios</td></tr>
+        <tr><td>☁️ Cloud</td><td><strong style="color:var(--a)">Spring Cloud</strong></td><td><code style="font-family:var(--fc);color:var(--p)">2025.1.2</code></td><td>Eureka, Gateway, Discovery</td></tr>
+        <tr><td>🐘 BD Relacional</td><td><strong style="color:var(--a)">PostgreSQL</strong></td><td><code style="font-family:var(--fc);color:var(--p)">16</code></td><td>Datos de pacientes (transaccional)</td></tr>
+        <tr><td>🍃 BD NoSQL</td><td><strong style="color:var(--a)">MongoDB</strong></td><td><code style="font-family:var(--fc);color:var(--p)">7</code></td><td>Historiales médicos (documentos)</td></tr>
+        <tr><td>🔐 Seguridad</td><td><strong style="color:var(--a)">Keycloak</strong></td><td><code style="font-family:var(--fc);color:var(--p)">25.x</code></td><td>OAuth2 / OpenID Connect / JWT</td></tr>
+        <tr><td>☕ Lenguaje</td><td><strong style="color:var(--a)">Java</strong></td><td><code style="font-family:var(--fc);color:var(--p)">25</code></td><td>Lenguaje de programación</td></tr>
+        <tr><td>🔧 Build</td><td><strong style="color:var(--a)">Gradle</strong></td><td><code style="font-family:var(--fc);color:var(--p)">9.7</code></td><td>Build tool y dependencias</td></tr>
+        <tr><td>🐳 Contenedores</td><td><strong style="color:var(--a)">Docker Compose</strong></td><td><code style="font-family:var(--fc);color:var(--p)">latest</code></td><td>Infraestructura de desarrollo</td></tr>
+    </tbody>
+</table>
+</div>
+
+<!-- SLIDE 8: EUREKA + GATEWAY -->
+<div class="slide bg-grad" data-s="7">
+<h2 class="tt fi"><span class="n">07.</span> Eureka Server + Spring Cloud Gateway</h2>
+<p class="sd fi fd1">Eureka registra todos los servicios. Gateway enruta las peticiones via Eureka con balanceo de carga (<code style="font-family:var(--fc);color:var(--p)">lb://</code>) y valida JWT.</p>
+<div class="sl fi fd2">
+    <div>
+        <h3 style="font-family:var(--fh);font-size:1rem;margin-bottom:14px;color:var(--a)">📡 Eureka Server (:8761)</h3>
+        <ul class="fl">
+            <li><span class="ic">✦</span> Servicios se registran al arrancar</li>
+            <li><span class="ic">✦</span> Registro dinámico de servicios activos</li>
+            <li><span class="ic">✦</span> Health checks automáticos</li>
+            <li><span class="ic">✦</span> Permite escalado horizontal sin reconfigurar</li>
+        </ul>
+        <h3 style="font-family:var(--fh);font-size:1rem;margin:18px 0 10px;color:var(--p)">🌐 Gateway (:8090)</h3>
+        <div class="cd" style="margin-bottom:10px"><div class="cn">📂 /api/pacientes/**</div><div class="ct">→ <code style="font-family:var(--fc);color:var(--a)">lb://PACIENTES-SERVICE</code></div></div>
+        <div class="cd"><div class="cn">📂 /api/historiales/**</div><div class="ct">→ <code style="font-family:var(--fc);color:var(--a)">lb://HISTORIAL-MEDICO-SERVICE</code></div></div>
+    </div>
+    <div>
+        <div class="cb"><div class="ch"><div class="d dr"></div><div class="d dy"></div><div class="d dg"></div><span class="fn">application.yml (Gateway)</span></div>
+<span class="kw">spring</span>:
+  <span class="tp">cloud</span>:
+    <span class="tp">gateway</span>:
+      <span class="tp">server</span>:
+        <span class="tp">webflux</span>:
+          <span class="tp">routes</span>:
+            <span class="cmt"># Pacientes Service</span>
+            - <span class="tp">id</span>: <span class="str">pacientes-service</span>
+              <span class="tp">uri</span>: <span class="str">lb://PACIENTES-SERVICE</span>
+              <span class="tp">predicates</span>:
+                - <span class="str">Path=/api/pacientes/**</span>
+
+            <span class="cmt"># Historial Médico</span>
+            - <span class="tp">id</span>: <span class="str">historial-medico-service</span>
+              <span class="tp">uri</span>: <span class="str">lb://HISTORIAL-MEDICO-SERVICE</span>
+              <span class="tp">predicates</span>:
+                - <span class="str">Path=/api/historiales/**</span></div>
+    </div>
+</div>
+</div>
+
+<!-- SLIDE 9: PACIENTES SERVICE -->
+<div class="slide bg-grid" data-s="8">
+<h2 class="tt fi"><span class="n">08.</span> Pacientes Service — PostgreSQL</h2>
+<p class="sd fi fd1">CRUD de pacientes con JPA/Hibernate. Se comunica con Historial Médico via HTTP + Eureka.</p>
+<div class="sl fi fd2">
+    <div>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px"><img src="img/postgresql.jpg" alt="PostgreSQL" style="width:44px;height:44px;border-radius:10px"><div><div style="font-family:var(--fh);font-weight:600">PostgreSQL 16</div><div style="font-size:.78rem;color:var(--t)">Base de datos relacional</div></div></div>
+        <h3 style="font-family:var(--fh);font-size:.95rem;margin-bottom:10px;color:var(--p)">Entidad Paciente</h3>
+        <ul class="fl" style="font-size:.82rem;margin-bottom:14px">
+            <li><span class="ic">📌</span><code style="font-family:var(--fc)">id, nombre, apellido, email</code></li>
+            <li><span class="ic">📌</span><code style="font-family:var(--fc)">tipoDocumento, numeroDocumento</code></li>
+            <li><span class="ic">📌</span><code style="font-family:var(--fc)">fechaNacimiento, telefono, direccion</code></li>
+            <li><span class="ic">📌</span><code style="font-family:var(--fc)">fechaRegistro, fechaActualizacion</code> (auto)</li>
+        </ul>
+        <h3 style="font-family:var(--fh);font-size:.95rem;margin-bottom:8px;color:var(--p)">Endpoints REST</h3>
+        <ul class="el">
+            <li class="ei"><span class="em get">GET</span><span class="ep">/api/pacientes</span><span class="ed">Listar</span></li>
+            <li class="ei"><span class="em get">GET</span><span class="ep">/api/pacientes/{id}</span><span class="ed">Por ID</span></li>
+            <li class="ei"><span class="em get">GET</span><span class="ep">/api/pacientes/{id}/historial</span><span class="ed">+Historial ↔</span></li>
+            <li class="ei"><span class="em post">POST</span><span class="ep">/api/pacientes</span><span class="ed">Crear</span></li>
+            <li class="ei"><span class="em put">PUT</span><span class="ep">/api/pacientes/{id}</span><span class="ed">Actualizar</span></li>
+            <li class="ei"><span class="em del">DEL</span><span class="ep">/api/pacientes/{id}</span><span class="ed">Eliminar</span></li>
+        </ul>
+    </div>
+    <div>
+        <div class="cb"><div class="ch"><div class="d dr"></div><div class="d dy"></div><div class="d dg"></div><span class="fn">Paciente.java (Entidad JPA)</span></div>
+<span class="an">@Entity</span>
+<span class="an">@Table</span>(name = <span class="str">"pacientes"</span>)
+<span class="an">@Getter</span> <span class="an">@Setter</span> <span class="an">@Builder</span>
+<span class="kw">public class</span> <span class="tp">Paciente</span> {
+
+    <span class="an">@Id</span>
+    <span class="an">@GeneratedValue</span>(strategy = IDENTITY)
+    <span class="kw">private</span> <span class="tp">Long</span> id;
+
+    <span class="an">@NotBlank</span>
+    <span class="kw">private</span> <span class="tp">String</span> nombre, apellido;
+
+    <span class="an">@Email</span> <span class="an">@Column</span>(unique = <span class="str">true</span>)
+    <span class="kw">private</span> <span class="tp">String</span> email;
+
+    <span class="an">@NotNull</span>
+    <span class="kw">private</span> <span class="tp">LocalDate</span> fechaNacimiento;
+
+    <span class="an">@Column</span>(unique = <span class="str">true</span>)
+    <span class="kw">private</span> <span class="tp">String</span> numeroDocumento;
+}</div>
+    </div>
+</div>
+</div>
+
+<!-- SLIDE 10: HISTORIAL MEDICO -->
+<div class="slide bg-dots" data-s="9">
+<h2 class="tt fi"><span class="n">09.</span> Historial Médico Service — MongoDB</h2>
+<p class="sd fi fd1">Gestión de historiales con MongoDB. Valida pacientes consultando al otro servicio via HTTP + Eureka.</p>
+<div class="sl fi fd2">
+    <div>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px"><img src="img/mongodb.jpg" alt="MongoDB" style="width:44px;height:44px;border-radius:10px"><div><div style="font-family:var(--fh);font-weight:600">MongoDB 7</div><div style="font-size:.78rem;color:var(--t)">Base de datos NoSQL</div></div></div>
+        <h3 style="font-family:var(--fh);font-size:.95rem;margin-bottom:10px;color:var(--p)">Documento HistorialMedico</h3>
+        <ul class="fl" style="font-size:.82rem;margin-bottom:14px">
+            <li><span class="ic">📌</span><code style="font-family:var(--fc)">id</code> — ObjectId de MongoDB</li>
+            <li><span class="ic">📌</span><code style="font-family:var(--fc)">pacienteId</code> — Referencia (indexado)</li>
+            <li><span class="ic">📌</span><code style="font-family:var(--fc)">diagnostico, tratamiento, medico</code></li>
+            <li><span class="ic">📌</span><code style="font-family:var(--fc)">tipoConsulta, notas, fechaConsulta</code></li>
+        </ul>
+        <h3 style="font-family:var(--fh);font-size:.95rem;margin-bottom:8px;color:var(--p)">Endpoints REST</h3>
+        <ul class="el">
+            <li class="ei"><span class="em get">GET</span><span class="ep">/api/historiales</span><span class="ed">Listar</span></li>
+            <li class="ei"><span class="em get">GET</span><span class="ep">/api/historiales/{id}</span><span class="ed">Por ID</span></li>
+            <li class="ei"><span class="em get">GET</span><span class="ep">/api/historiales/paciente/{id}</span><span class="ed">Por paciente ↔</span></li>
+            <li class="ei"><span class="em post">POST</span><span class="ep">/api/historiales</span><span class="ed">Crear (valida) ↔</span></li>
+            <li class="ei"><span class="em put">PUT</span><span class="ep">/api/historiales/{id}</span><span class="ed">Actualizar</span></li>
+            <li class="ei"><span class="em del">DEL</span><span class="ep">/api/historiales/{id}</span><span class="ed">Eliminar</span></li>
+        </ul>
+    </div>
+    <div>
+        <div class="cb"><div class="ch"><div class="d dr"></div><div class="d dy"></div><div class="d dg"></div><span class="fn">HistorialMedico.java (Documento MongoDB)</span></div>
+<span class="an">@Document</span>(collection = <span class="str">"historiales_medicos"</span>)
+<span class="an">@Getter</span> <span class="an">@Setter</span> <span class="an">@Builder</span>
+<span class="kw">public class</span> <span class="tp">HistorialMedico</span> {
+
+    <span class="an">@Id</span>
+    <span class="kw">private</span> <span class="tp">String</span> id;
+
+    <span class="an">@Indexed</span>
+    <span class="kw">private</span> <span class="tp">Long</span> pacienteId;
+
+    <span class="an">@NotBlank</span>
+    <span class="kw">private</span> <span class="tp">String</span> diagnostico;
+    <span class="kw">private</span> <span class="tp">String</span> tratamiento;
+    <span class="kw">private</span> <span class="tp">String</span> medico;
+    <span class="kw">private</span> <span class="tp">String</span> tipoConsulta;
+    <span class="kw">private</span> <span class="tp">String</span> notas;
+
+    <span class="an">@CreatedDate</span>
+    <span class="kw">private</span> <span class="tp">LocalDateTime</span> fechaCreacion;
+}</div>
+    </div>
+</div>
+</div>
+
+<!-- SLIDE 11: COMUNICACIÓN -->
+<div class="slide bg-grad" data-s="10">
+<h2 class="tt fi"><span class="n">10.</span> Comunicación Inter-Servicio</h2>
+<p class="sd fi fd1">HTTP directo con <code style="font-family:var(--fc);color:var(--p)">RestClient</code> + resolución via <code style="font-family:var(--fc);color:var(--p)">DiscoveryClient</code> de Eureka + propagación de JWT.</p>
+<div class="fs fi fd2">
+    <div class="fst"><div class="sn">1</div><div class="stt">Cliente</div><div class="std">Obtiene JWT de Keycloak</div></div>
+    <div class="fst"><div class="sn">2</div><div class="stt">Gateway</div><div class="std">Valida JWT, enruta via Eureka</div></div>
+    <div class="fst"><div class="sn">3</div><div class="stt">Pacientes</div><div class="std">Necesita historial del paciente</div></div>
+    <div class="fst"><div class="sn">4</div><div class="stt">Eureka</div><div class="std">Resuelve URL de Historial</div></div>
+    <div class="fst"><div class="sn">5</div><div class="stt">Historial</div><div class="std">Recibe con JWT, retorna datos</div></div>
+    <div class="fst"><div class="sn">6</div><div class="stt">Respuesta</div><div class="std">Paciente + historial combinados</div></div>
+</div>
+<div class="cb fi fd3" style="max-width:750px;margin-top:24px"><div class="ch"><div class="d dr"></div><div class="d dy"></div><div class="d dg"></div><span class="fn">HistorialMedicoClient.java</span></div>
+<span class="cmt">// 1. Resolver URL via Eureka DiscoveryClient</span>
+<span class="tp">List</span>&lt;<span class="tp">ServiceInstance</span>&gt; instances =
+    discoveryClient.<span class="mt">getInstances</span>(<span class="str">"HISTORIAL-MEDICO-SERVICE"</span>);
+<span class="tp">String</span> baseUrl = instances.<span class="mt">getFirst</span>().<span class="mt">getUri</span>().toString();
+
+<span class="cmt">// 2. Llamar con RestClient propagando JWT</span>
+<span class="tp">List</span>&lt;<span class="tp">HistorialMedicoResponse</span>&gt; historial = restClient.<span class="mt">get</span>()
+    .<span class="mt">uri</span>(baseUrl + <span class="str">"/api/historiales/paciente/{id}"</span>, pacienteId)
+    .<span class="mt">header</span>(<span class="str">"Authorization"</span>, <span class="str">"Bearer "</span> + jwtToken)
+    .<span class="mt">retrieve</span>().<span class="mt">body</span>(<span class="kw">new</span> <span class="tp">ParameterizedTypeReference</span>&lt;&gt;() {});</div>
+</div>
+
+<!-- SLIDE 12: SEGURIDAD -->
+<div class="slide bg-grid" data-s="11">
+<h2 class="tt fi"><span class="n">11.</span> Seguridad con Keycloak</h2>
+<p class="sd fi fd1">OAuth2 / OpenID Connect con JWT. Cada servicio valida el token de forma independiente.</p>
+<div class="sl fi fd2">
+    <div>
+        <div class="cd" style="margin-bottom:12px"><span class="ci">🏰</span><div class="cn">Realm: salud-system</div><div class="ct">Preconfigurado con client y usuarios de prueba</div></div>
+        <div class="cd" style="margin-bottom:12px"><span class="ci">🔑</span><div class="cn">Client: microservicios-client</div><div class="ct">Confidencial con Direct Access Grants</div></div>
+        <div class="cd" style="margin-bottom:12px"><span class="ci">👤</span><div class="cn">Usuarios de Prueba</div><div class="ct"><code style="font-family:var(--fc);color:var(--a)">medico / medico123</code><br><code style="font-family:var(--fc);color:var(--a)">admin / admin123</code></div></div>
+        <h3 style="font-family:var(--fh);font-size:.95rem;margin-bottom:8px;color:var(--p)">Flujo</h3>
+        <ul class="fl">
+            <li><span class="ic">1️⃣</span> Cliente solicita JWT a Keycloak</li>
+            <li><span class="ic">2️⃣</span> Servicio valida JWT localmente (JWKS)</li>
+            <li><span class="ic">3️⃣</span> JWT se propaga entre servicios</li>
+            <li><span class="ic">4️⃣</span> Sin token → 401 Unauthorized</li>
+        </ul>
+    </div>
+    <div>
+        <div class="cb"><div class="ch"><div class="d dr"></div><div class="d dy"></div><div class="d dg"></div><span class="fn">SecurityConfig.java</span></div>
+<span class="an">@Configuration</span>
+<span class="an">@EnableWebSecurity</span>
+<span class="kw">public class</span> <span class="tp">SecurityConfig</span> {
+  <span class="an">@Bean</span>
+  <span class="kw">public</span> <span class="tp">SecurityFilterChain</span> <span class="mt">filterChain</span>(
+          <span class="tp">HttpSecurity</span> http) {
+    http
+      .<span class="mt">csrf</span>(csrf -> csrf.disable())
+      .<span class="mt">sessionManagement</span>(s -> s
+        .sessionCreationPolicy(STATELESS))
+      .<span class="mt">authorizeHttpRequests</span>(auth -> auth
+        .requestMatchers(<span class="str">"/actuator/**"</span>)
+          .permitAll()
+        .requestMatchers(<span class="str">"/api/**"</span>)
+          .authenticated())
+      .<span class="mt">oauth2ResourceServer</span>(o ->
+        o.jwt(withDefaults()));
+    <span class="kw">return</span> http.build();
+  }
+}</div>
+    </div>
+</div>
+</div>
+
+<!-- SLIDE 13: EJECUCIÓN -->
+<div class="slide bg-dots" data-s="12">
+<h2 class="tt fi"><span class="n">12.</span> Guía de Ejecución</h2>
+<p class="sd fi fd1">Pasos para levantar el sistema completo en tu máquina local.</p>
+<div class="cg c3 fi fd2" style="max-width:1000px">
+    <div class="cd"><span class="ci">🐳</span><div class="cn">1. Infraestructura</div><div class="cb" style="margin-top:8px;font-size:.72rem;padding:10px">docker-compose up -d</div><div class="ct" style="margin-top:6px">Levanta PostgreSQL, MongoDB, Keycloak</div></div>
+    <div class="cd"><span class="ci">📡</span><div class="cn">2. Eureka Server</div><div class="cb" style="margin-top:8px;font-size:.72rem;padding:10px"><span class="kw">cd</span> eureka-server<br>./gradlew bootRun</div><div class="ct" style="margin-top:6px">Dashboard: <code style="color:var(--p)">localhost:8761</code></div></div>
+    <div class="cd"><span class="ci">🌐</span><div class="cn">3. Gateway</div><div class="cb" style="margin-top:8px;font-size:.72rem;padding:10px"><span class="kw">cd</span> gateway-service<br>./gradlew bootRun</div><div class="ct" style="margin-top:6px">Entrada: <code style="color:var(--p)">localhost:8090</code></div></div>
+    <div class="cd"><span class="ci">🏥</span><div class="cn">4. Pacientes</div><div class="cb" style="margin-top:8px;font-size:.72rem;padding:10px"><span class="kw">cd</span> pacientes-service<br>./gradlew bootRun</div><div class="ct" style="margin-top:6px">API: <code style="color:var(--p)">localhost:8081</code></div></div>
+    <div class="cd"><span class="ci">📋</span><div class="cn">5. Historial Médico</div><div class="cb" style="margin-top:8px;font-size:.72rem;padding:10px"><span class="kw">cd</span> historial-medico-service<br>./gradlew bootRun</div><div class="ct" style="margin-top:6px">API: <code style="color:var(--p)">localhost:8082</code></div></div>
+    <div class="cd"><span class="ci">✅</span><div class="cn">6. Verificar</div><div class="cb" style="margin-top:8px;font-size:.72rem;padding:10px"><span class="cmt"># Eureka Dashboard</span><br>http://localhost:<span class="str">8761</span></div><div class="ct" style="margin-top:6px">3 servicios registrados</div></div>
+</div>
+</div>
+
+<!-- SLIDE 14: CIERRE -->
+<div class="slide bg-grad" data-s="13">
+<div style="text-align:center">
+    <img src="https://www.eia.edu.co/wp-content/uploads/2024/05/Favicon-new-300x300.webp" alt="EIA" style="width:70px;height:70px;border-radius:14px;margin-bottom:16px;box-shadow:0 4px 18px rgba(33,184,210,.2)" class="fi">
+    <div class="bd bp fi fd1" style="margin-bottom:16px">Universidad EIA · 2026-2</div>
+    <h1 class="st fi fd2" style="max-width:700px">¡Gracias!<br><span class="hi">¿Preguntas?</span></h1>
+    <p class="ss fi fd3">Sistema de Salud con Microservicios<br>Spring Boot 4.1 · Spring Cloud · Keycloak · PostgreSQL · MongoDB</p>
+    <div class="cg c3 fi fd4" style="max-width:600px;margin-top:24px">
+        <div class="cd" style="text-align:center;padding:16px"><div style="font-family:var(--fh);font-size:1.8rem;font-weight:800;color:var(--p)">4</div><div class="ct">Servicios</div></div>
+        <div class="cd" style="text-align:center;padding:16px"><div style="font-family:var(--fh);font-size:1.8rem;font-weight:800;color:var(--a)">2</div><div class="ct">Bases de Datos</div></div>
+        <div class="cd" style="text-align:center;padding:16px"><div style="font-family:var(--fh);font-size:1.8rem;font-weight:800;color:#ffa500">1</div><div class="ct">Identity Provider</div></div>
+    </div>
+</div>
+</div>
+
+</div>
+
+<!-- NAV -->
+<nav class="nav">
+    <div class="nl">
+        <img src="https://www.eia.edu.co/wp-content/uploads/2024/05/Favicon-new-100x100.webp" alt="EIA">
+        <span class="ns">|</span>
+        <span class="nt">Arquitectura de Microservicios</span>
+    </div>
+    <div class="nc" id="dots"></div>
+    <div class="nr">
+        <span class="nc2"><span id="cur">1</span> / <span id="tot">14</span></span>
+        <button class="nb" onclick="prev()" title="← Anterior">‹</button>
+        <button class="nb" onclick="next()" title="→ Siguiente">›</button>
+    </div>
+</nav>
+
+<script>
+const S=document.querySelectorAll('.slide'),T=S.length;let I=0;
+const D=document.getElementById('dots');
+for(let i=0;i<T;i++){const d=document.createElement('div');d.className='nd'+(i===0?' act':'');d.onclick=()=>go(i);D.appendChild(d)}
+function upd(){S.forEach((s,i)=>{s.classList.remove('active','prev');if(i===I)s.classList.add('active');else if(i<I)s.classList.add('prev')});document.querySelectorAll('.nd').forEach((d,i)=>d.classList.toggle('act',i===I));document.getElementById('cur').textContent=I+1;document.getElementById('pb').style.width=(I/(T-1)*100)+'%'}
+function next(){if(I<T-1){I++;upd()}}
+function prev(){if(I>0){I--;upd()}}
+function go(i){I=i;upd()}
+document.addEventListener('keydown',e=>{switch(e.key){case'ArrowRight':case'ArrowDown':case' ':case'Enter':e.preventDefault();next();break;case'ArrowLeft':case'ArrowUp':case'Backspace':e.preventDefault();prev();break;case'Home':e.preventDefault();go(0);break;case'End':e.preventDefault();go(T-1);break}});
+let tx=0;document.addEventListener('touchstart',e=>{tx=e.touches[0].clientX});document.addEventListener('touchend',e=>{const d=tx-e.changedTouches[0].clientX;if(Math.abs(d)>50){d>0?next():prev()}});
+</script>
+</body>
+</html>
