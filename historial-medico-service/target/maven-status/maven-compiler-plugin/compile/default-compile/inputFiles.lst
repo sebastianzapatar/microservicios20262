@@ -1,0 +1,11 @@
+/Users/sebastianzapata/Documents/implementacion20262/microservicios/historial-medico-service/src/main/java/com/salud/historial/HistorialMedicoServiceApplication.java
+/Users/sebastianzapata/Documents/implementacion20262/microservicios/historial-medico-service/src/main/java/com/salud/historial/client/PacienteClient.java
+/Users/sebastianzapata/Documents/implementacion20262/microservicios/historial-medico-service/src/main/java/com/salud/historial/config/MongoConfig.java
+/Users/sebastianzapata/Documents/implementacion20262/microservicios/historial-medico-service/src/main/java/com/salud/historial/config/SecurityConfig.java
+/Users/sebastianzapata/Documents/implementacion20262/microservicios/historial-medico-service/src/main/java/com/salud/historial/controller/HistorialMedicoController.java
+/Users/sebastianzapata/Documents/implementacion20262/microservicios/historial-medico-service/src/main/java/com/salud/historial/dto/HistorialMedicoRequest.java
+/Users/sebastianzapata/Documents/implementacion20262/microservicios/historial-medico-service/src/main/java/com/salud/historial/dto/HistorialMedicoResponse.java
+/Users/sebastianzapata/Documents/implementacion20262/microservicios/historial-medico-service/src/main/java/com/salud/historial/dto/PacienteResponse.java
+/Users/sebastianzapata/Documents/implementacion20262/microservicios/historial-medico-service/src/main/java/com/salud/historial/model/HistorialMedico.java
+/Users/sebastianzapata/Documents/implementacion20262/microservicios/historial-medico-service/src/main/java/com/salud/historial/repository/HistorialMedicoRepository.java
+/Users/sebastianzapata/Documents/implementacion20262/microservicios/historial-medico-service/src/main/java/com/salud/historial/service/HistorialMedicoService.java

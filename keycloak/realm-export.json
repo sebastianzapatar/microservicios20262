@@ -1,0 +1,73 @@
+{
+  "realm": "salud-system",
+  "enabled": true,
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "clients": [
+    {
+      "clientId": "microservicios-client",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "microservicios-secret",
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": true,
+      "authorizationServicesEnabled": false,
+      "redirectUris": ["*"],
+      "webOrigins": ["*"],
+      "protocol": "openid-connect",
+      "standardFlowEnabled": true,
+      "defaultClientScopes": [
+        "web-origins",
+        "profile",
+        "roles",
+        "email"
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "medico",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Doctor",
+      "lastName": "Admin",
+      "email": "medico@salud.com",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "medico123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["default-roles-salud-system"]
+    },
+    {
+      "username": "admin",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Admin",
+      "lastName": "Sistema",
+      "email": "admin@salud.com",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "admin123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["default-roles-salud-system"]
+    }
+  ],
+  "roles": {
+    "realm": [
+      {
+        "name": "ROLE_MEDICO",
+        "description": "Rol para médicos"
+      },
+      {
+        "name": "ROLE_ADMIN",
+        "description": "Rol para administradores"
+      }
+    ]
+  }
+}

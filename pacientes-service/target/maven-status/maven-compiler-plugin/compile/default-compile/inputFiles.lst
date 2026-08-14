@@ -1,0 +1,10 @@
+/Users/sebastianzapata/Documents/implementacion20262/microservicios/pacientes-service/src/main/java/com/salud/pacientes/PacientesServiceApplication.java
+/Users/sebastianzapata/Documents/implementacion20262/microservicios/pacientes-service/src/main/java/com/salud/pacientes/client/HistorialMedicoClient.java
+/Users/sebastianzapata/Documents/implementacion20262/microservicios/pacientes-service/src/main/java/com/salud/pacientes/config/SecurityConfig.java
+/Users/sebastianzapata/Documents/implementacion20262/microservicios/pacientes-service/src/main/java/com/salud/pacientes/controller/PacienteController.java
+/Users/sebastianzapata/Documents/implementacion20262/microservicios/pacientes-service/src/main/java/com/salud/pacientes/dto/HistorialMedicoResponse.java
+/Users/sebastianzapata/Documents/implementacion20262/microservicios/pacientes-service/src/main/java/com/salud/pacientes/dto/PacienteRequest.java
+/Users/sebastianzapata/Documents/implementacion20262/microservicios/pacientes-service/src/main/java/com/salud/pacientes/dto/PacienteResponse.java
+/Users/sebastianzapata/Documents/implementacion20262/microservicios/pacientes-service/src/main/java/com/salud/pacientes/model/Paciente.java
+/Users/sebastianzapata/Documents/implementacion20262/microservicios/pacientes-service/src/main/java/com/salud/pacientes/repository/PacienteRepository.java
+/Users/sebastianzapata/Documents/implementacion20262/microservicios/pacientes-service/src/main/java/com/salud/pacientes/service/PacienteService.java

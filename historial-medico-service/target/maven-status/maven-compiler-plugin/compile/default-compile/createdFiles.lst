@@ -1,0 +1,12 @@
+com/salud/historial/client/PacienteClient.class
+com/salud/historial/model/HistorialMedico$HistorialMedicoBuilder.class
+com/salud/historial/dto/PacienteResponse.class
+com/salud/historial/config/MongoConfig.class
+com/salud/historial/config/SecurityConfig.class
+com/salud/historial/dto/HistorialMedicoRequest.class
+com/salud/historial/service/HistorialMedicoService.class
+com/salud/historial/controller/HistorialMedicoController.class
+com/salud/historial/dto/HistorialMedicoResponse.class
+com/salud/historial/model/HistorialMedico.class
+com/salud/historial/repository/HistorialMedicoRepository.class
+com/salud/historial/HistorialMedicoServiceApplication.class

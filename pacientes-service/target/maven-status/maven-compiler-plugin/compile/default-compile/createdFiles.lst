@@ -1,0 +1,13 @@
+com/salud/pacientes/dto/HistorialMedicoResponse.class
+com/salud/pacientes/client/HistorialMedicoClient.class
+com/salud/pacientes/dto/PacienteResponse.class
+com/salud/pacientes/model/Paciente.class
+com/salud/pacientes/repository/PacienteRepository.class
+com/salud/pacientes/controller/PacienteController.class
+com/salud/pacientes/config/SecurityConfig.class
+com/salud/pacientes/PacientesServiceApplication.class
+com/salud/pacientes/service/PacienteService$PacienteConHistorialResponse.class
+com/salud/pacientes/client/HistorialMedicoClient$1.class
+com/salud/pacientes/model/Paciente$PacienteBuilder.class
+com/salud/pacientes/dto/PacienteRequest.class
+com/salud/pacientes/service/PacienteService.class

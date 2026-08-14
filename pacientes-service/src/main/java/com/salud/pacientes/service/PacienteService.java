@@ -1,0 +1,129 @@
+package com.salud.pacientes.service;
+
+import com.salud.pacientes.client.HistorialMedicoClient;
+import com.salud.pacientes.dto.HistorialMedicoResponse;
+import com.salud.pacientes.dto.PacienteRequest;
+import com.salud.pacientes.dto.PacienteResponse;
+import com.salud.pacientes.model.Paciente;
+import com.salud.pacientes.repository.PacienteRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+
+@Service
+@RequiredArgsConstructor
+public class PacienteService {
+
+    private final PacienteRepository pacienteRepository;
+    private final HistorialMedicoClient historialMedicoClient;
+
+    @Transactional(readOnly = true)
+    public List<PacienteResponse> listarTodos() {
+        return pacienteRepository.findAll()
+                .stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public PacienteResponse obtenerPorId(Long id) {
+        Paciente paciente = pacienteRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Paciente no encontrado con ID: " + id));
+        return toResponse(paciente);
+    }
+
+    @Transactional(readOnly = true)
+    public PacienteResponse obtenerPorDocumento(String numeroDocumento) {
+        Paciente paciente = pacienteRepository.findByNumeroDocumento(numeroDocumento)
+                .orElseThrow(() -> new RuntimeException("Paciente no encontrado con documento: " + numeroDocumento));
+        return toResponse(paciente);
+    }
+
+    /**
+     * Obtiene un paciente junto con su historial médico.
+     * Realiza una llamada HTTP al microservicio de Historial Médico via Eureka.
+     */
+    @Transactional(readOnly = true)
+    public PacienteConHistorialResponse obtenerPacienteConHistorial(Long id) {
+        PacienteResponse paciente = obtenerPorId(id);
+        List<HistorialMedicoResponse> historial = historialMedicoClient.obtenerHistorialPorPaciente(id);
+        return new PacienteConHistorialResponse(paciente, historial);
+    }
+
+    @Transactional
+    public PacienteResponse crear(PacienteRequest request) {
+        if (pacienteRepository.existsByNumeroDocumento(request.numeroDocumento())) {
+            throw new RuntimeException("Ya existe un paciente con el documento: " + request.numeroDocumento());
+        }
+        if (request.email() != null && pacienteRepository.existsByEmail(request.email())) {
+            throw new RuntimeException("Ya existe un paciente con el email: " + request.email());
+        }
+
+        Paciente paciente = Paciente.builder()
+                .nombre(request.nombre())
+                .apellido(request.apellido())
+                .email(request.email())
+                .telefono(request.telefono())
+                .fechaNacimiento(request.fechaNacimiento())
+                .direccion(request.direccion())
+                .tipoDocumento(request.tipoDocumento())
+                .numeroDocumento(request.numeroDocumento())
+                .build();
+
+        Paciente saved = pacienteRepository.save(paciente);
+        return toResponse(saved);
+    }
+
+    @Transactional
+    public PacienteResponse actualizar(Long id, PacienteRequest request) {
+        Paciente paciente = pacienteRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Paciente no encontrado con ID: " + id));
+
+        paciente.setNombre(request.nombre());
+        paciente.setApellido(request.apellido());
+        paciente.setEmail(request.email());
+        paciente.setTelefono(request.telefono());
+        paciente.setFechaNacimiento(request.fechaNacimiento());
+        paciente.setDireccion(request.direccion());
+        paciente.setTipoDocumento(request.tipoDocumento());
+        paciente.setNumeroDocumento(request.numeroDocumento());
+
+        Paciente updated = pacienteRepository.save(paciente);
+        return toResponse(updated);
+    }
+
+    @Transactional
+    public void eliminar(Long id) {
+        if (!pacienteRepository.existsById(id)) {
+            throw new RuntimeException("Paciente no encontrado con ID: " + id);
+        }
+        pacienteRepository.deleteById(id);
+    }
+
+    private PacienteResponse toResponse(Paciente paciente) {
+        return new PacienteResponse(
+                paciente.getId(),
+                paciente.getNombre(),
+                paciente.getApellido(),
+                paciente.getEmail(),
+                paciente.getTelefono(),
+                paciente.getFechaNacimiento(),
+                paciente.getDireccion(),
+                paciente.getTipoDocumento(),
+                paciente.getNumeroDocumento(),
+                paciente.getFechaRegistro(),
+                paciente.getFechaActualizacion()
+        );
+    }
+
+    /**
+     * Record que combina los datos del paciente con su historial médico.
+     */
+    public record PacienteConHistorialResponse(
+            PacienteResponse paciente,
+            List<HistorialMedicoResponse> historialMedico
+    ) {
+    }
+}
