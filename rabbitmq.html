@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RabbitMQ — Sistema de Salud | Universidad EIA</title>
+    <meta name="description" content="Presentación de RabbitMQ: mensajería asíncrona y RPC entre microservicios.">
+    <link rel="icon" href="https://www.eia.edu.co/wp-content/uploads/2024/05/Favicon-new-100x100.webp">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&family=Roboto+Slab:wght@400;500;700&family=Roboto:wght@300;400;500;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+        :root{
+            --p:#FF6600;--pd:#cc5200;--pl:#ff8c3f;
+            --a:#61CE70;--ad:#4cb85a;
+            --s:#54595F;--t:#7A7A7A;
+            --bg:#0d1117;--card:#161b22;--brd:rgba(255,102,0,.15);--glow:rgba(255,102,0,.3);
+            --fh:'Poppins',sans-serif;--fb:'Roboto',sans-serif;--fs:'Roboto Slab',serif;--fc:'Fira Code',monospace;
+        }
+        html,body{width:100%;height:100%;overflow:hidden;font-family:var(--fb);background:var(--bg);color:#fff;-webkit-font-smoothing:antialiased}
+        .slide{position:absolute;top:0;left:0;width:100%;height:100%;display:flex;flex-direction:column;justify-content:center;align-items:center;padding:50px 70px 70px;opacity:0;transform:translateX(80px);transition:all .55s cubic-bezier(.4,0,.2,1);pointer-events:none;overflow-y:auto}
+        .slide.active{opacity:1;transform:translateX(0);pointer-events:all}
+        .slide.prev{opacity:0;transform:translateX(-80px)}
+        .slide::before{content:'';position:absolute;inset:0;pointer-events:none;z-index:0}
+        .slide>*{position:relative;z-index:1}
+        .bg-grid::before{background-image:linear-gradient(rgba(255,102,0,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(255,102,0,.03) 1px,transparent 1px);background-size:60px 60px}
+        .bg-dots::before{background-image:radial-gradient(circle,rgba(255,102,0,.08) 1px,transparent 1px);background-size:30px 30px}
+        .bg-grad::before{background:radial-gradient(ellipse at 20% 50%,rgba(255,102,0,.08) 0%,transparent 60%),radial-gradient(ellipse at 80% 20%,rgba(97,206,112,.06) 0%,transparent 50%)}
+        .st{font-family:var(--fh);font-size:clamp(1.8rem,3.5vw,3.2rem);font-weight:800;line-height:1.15;margin-bottom:10px;letter-spacing:-.02em}
+        .st .hi{background:linear-gradient(135deg,var(--p),var(--pl));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+        .ss{font-family:var(--fs);font-size:clamp(.9rem,1.6vw,1.3rem);color:var(--t);font-weight:400;margin-bottom:36px;max-width:700px;text-align:center;line-height:1.6}
+        h2.tt{font-family:var(--fh);font-size:clamp(1.4rem,2.8vw,2.2rem);font-weight:700;margin-bottom:6px;color:#fff}
+        h2.tt .n{color:var(--p);font-weight:800}
+        .sd{font-size:clamp(.85rem,1.2vw,1.05rem);color:var(--t);margin-bottom:30px;max-width:800px;line-height:1.6;text-align:center}
+        .cg{display:grid;gap:16px;width:100%;max-width:1100px}
+        .cg.c2{grid-template-columns:1fr 1fr}.cg.c3{grid-template-columns:1fr 1fr 1fr}.cg.c4{grid-template-columns:1fr 1fr 1fr 1fr}
+        .cd{background:var(--card);border:1px solid var(--brd);border-radius:14px;padding:22px;transition:all .3s;position:relative;overflow:hidden}
+        .cd::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--p),var(--pl));opacity:0;transition:opacity .3s}
+        .cd:hover{border-color:rgba(255,102,0,.3);transform:translateY(-3px);box-shadow:0 6px 24px rgba(255,102,0,.1)}
+        .cd:hover::before{opacity:1}
+        .ci{font-size:2rem;margin-bottom:10px;display:block}.cn{font-family:var(--fh);font-size:1rem;font-weight:600;color:#fff;margin-bottom:6px}.ct{font-size:.84rem;color:var(--t);line-height:1.5}
+        .bd{display:inline-block;padding:3px 10px;border-radius:18px;font-size:.72rem;font-weight:600;font-family:var(--fh);letter-spacing:.03em}
+        .bp{background:rgba(255,102,0,.15);color:var(--p);border:1px solid rgba(255,102,0,.3)}
+        .ba{background:rgba(97,206,112,.15);color:var(--a);border:1px solid rgba(97,206,112,.3)}
+        .bo{background:rgba(50,108,229,.15);color:#5287f7;border:1px solid rgba(50,108,229,.3)}
+        .bv{background:rgba(155,81,224,.15);color:#b388ff;border:1px solid rgba(155,81,224,.3)}
+        .br{background:rgba(255,100,100,.15);color:#ff6464;border:1px solid rgba(255,100,100,.3)}
+        .sl{display:grid;grid-template-columns:1fr 1fr;gap:36px;width:100%;max-width:1100px;align-items:start}
+        .fl{list-style:none;display:flex;flex-direction:column;gap:10px}
+        .fl li{display:flex;align-items:flex-start;gap:10px;font-size:.88rem;color:#c9d1d9;line-height:1.5}
+        .fl li .ic{color:var(--a);font-size:1.1rem;flex-shrink:0;margin-top:2px}
+        .cb{background:#0d1117;border:1px solid var(--brd);border-radius:11px;padding:14px 16px;font-family:var(--fc);font-size:.72rem;line-height:1.6;color:#c9d1d9;overflow-x:auto;width:100%;white-space:pre-wrap;word-break:break-word}
+        .cb .kw{color:#ff7b72}.cb .str{color:#a5d6ff}.cb .cmt{color:#8b949e}.cb .tp{color:#79c0ff}
+        .tbl{width:100%;max-width:900px;border-collapse:collapse;font-size:.88rem}
+        .tbl thead th{font-family:var(--fh);font-weight:600;font-size:.78rem;text-transform:uppercase;letter-spacing:.05em;color:var(--p);padding:10px 14px;text-align:left;border-bottom:2px solid var(--brd)}
+        .tbl tbody td{padding:10px 14px;border-bottom:1px solid rgba(255,102,0,.06);color:#c9d1d9}
+        .tbl tbody tr:hover{background:rgba(255,102,0,.04)}
+        .nav{position:fixed;bottom:0;left:0;right:0;height:52px;background:rgba(13,17,23,.95);backdrop-filter:blur(16px);border-top:1px solid var(--brd);display:flex;align-items:center;justify-content:space-between;padding:0 28px;z-index:1000}
+        .nav .nl{display:flex;align-items:center;gap:10px}
+        .nav .nl img{height:28px;filter:brightness(1.1)}
+        .nav .nl .ns{color:rgba(255,255,255,.15)}.nav .nl .nt{font-size:.78rem;color:var(--t)}
+        .nav .nc{display:flex;align-items:center;gap:5px}
+        .nav .nd{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.15);transition:all .3s;cursor:pointer}
+        .nav .nd.act{background:var(--p);box-shadow:0 0 8px var(--glow);width:20px;border-radius:4px}
+        .nav .nr{display:flex;align-items:center;gap:14px}
+        .nav .nr .nc2{font-family:var(--fc);font-size:.78rem;color:var(--t)}
+        .nb{width:34px;height:34px;border-radius:7px;border:1px solid var(--brd);background:transparent;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;font-size:1rem}
+        .nb:hover{background:rgba(255,102,0,.1);border-color:var(--p)}.nb:active{transform:scale(.95)}
+        .pb{position:fixed;top:0;left:0;height:3px;background:linear-gradient(90deg,var(--p),var(--a));transition:width .4s cubic-bezier(.4,0,.2,1);z-index:1001;box-shadow:0 0 8px var(--glow)}
+        .kbd{font-family:var(--fc);font-size:.62rem;padding:2px 5px;border-radius:3px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--t)}
+        @keyframes fadeInUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+        @keyframes pulse{0%,100%{box-shadow:0 0 0 rgba(255,102,0,0)}50%{box-shadow:0 0 16px var(--glow)}}
+        .af{animation:float 3s ease-in-out infinite}.ap{animation:pulse 2s ease-in-out infinite}
+        .slide.active .fi{animation:fadeInUp .5s ease forwards}
+        .slide.active .fd1{animation-delay:.1s;opacity:0}.slide.active .fd2{animation-delay:.2s;opacity:0}.slide.active .fd3{animation-delay:.3s;opacity:0}.slide.active .fd4{animation-delay:.4s;opacity:0}
+        .vs-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;width:100%;max-width:1000px}
+        .vs-col h3{font-family:var(--fh);font-size:1.1rem;font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+        .vs-col .vs-items{list-style:none;display:flex;flex-direction:column;gap:10px}
+        .vs-col .vs-items li{display:flex;align-items:flex-start;gap:10px;font-size:.86rem;color:#c9d1d9;line-height:1.5;padding:10px 14px;background:var(--card);border:1px solid var(--brd);border-radius:10px}
+        .vs-col .vs-items li .vi{font-size:1.2rem;flex-shrink:0}
+        .flow{display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;width:100%;max-width:1050px}
+        .node{background:var(--card);border:1px solid var(--brd);border-radius:11px;padding:12px 16px;text-align:center;min-width:135px}
+        .node .nn{font-family:var(--fh);font-size:.85rem;font-weight:600;color:#fff}
+        .node .nsub{font-size:.7rem;color:var(--t);margin-top:3px;font-family:var(--fc)}
+        .node.bus{border-color:rgba(255,102,0,.45);background:rgba(255,102,0,.08)}
+        .arw{color:var(--p);font-size:1.3rem;font-weight:700}
+        @media(max-width:900px){.slide{padding:36px 24px 60px}.cg.c3,.cg.c4{grid-template-columns:1fr 1fr}.sl,.vs-grid{grid-template-columns:1fr}}
+    </style>
+</head>
+<body>
+<div class="pb" id="pb" style="width:0%"></div>
+<div id="pres">
+
+<!-- SLIDE 1: PORTADA -->
+<div class="slide active bg-grad" data-s="0">
+<div style="text-align:center">
+    <div style="font-size:80px; margin-bottom:20px" class="fi af">🐰</div>
+    <div class="bd bp fi fd1" style="margin-bottom:18px">Universidad EIA · Implementación 2026-2</div>
+    <h1 class="st fi fd2" style="max-width:880px">De llamadas HTTP a<br><span class="hi">mensajería con RabbitMQ</span></h1>
+    <p class="ss fi fd3">Cómo desacoplamos tres microservicios (dos en Java, uno en Python)<br>sustituyendo las llamadas directas por colas de mensajes.</p>
+    <div style="margin-top:20px" class="fi fd4">
+        <a href="index.html" style="text-decoration:none" class="bd ba">← Volver a Arquitectura</a>
+    </div>
+    <p style="margin-top:36px;font-size:.78rem;color:var(--t)" class="fi fd4">Usa <span class="kbd">←</span> <span class="kbd">→</span> o <span class="kbd">Space</span> para navegar</p>
+</div>
+</div>
+
+<!-- SLIDE 2: EL PROBLEMA -->
+<div class="slide bg-grid" data-s="1">
+<h2 class="tt fi"><span class="n">01.</span> El problema que teníamos</h2>
+<p class="sd fi fd1">Los microservicios se llamaban entre sí por HTTP, resolviendo la dirección del otro con Eureka. Funciona... hasta que algo falla.</p>
+<div class="cg c2 fi fd2" style="max-width:950px">
+    <div class="cd">
+        <span class="ci">🔗</span><div class="cn">Acoplamiento temporal</div>
+        <div class="ct">Para crear un historial, <b>Historial</b> tenía que llamar a <b>Pacientes</b> en ese instante. Si Pacientes estaba caído, no se podía registrar nada.</div>
+    </div>
+    <div class="cd">
+        <span class="ci">💥</span><div class="cn">Fallos en cascada</div>
+        <div class="ct">Un servicio lento contagiaba su lentitud a todos los que dependían de él. El error de uno se convertía en el error de todos.</div>
+    </div>
+    <div class="cd">
+        <span class="ci">🗺️</span><div class="cn">Hay que conocerse</div>
+        <div class="ct">Cada servicio necesitaba saber el <b>nombre y la URL</b> del otro. Añadir un consumidor nuevo obligaba a tocar el código del emisor.</div>
+    </div>
+    <div class="cd">
+        <span class="ci">⏳</span><div class="cn">Todo era síncrono</div>
+        <div class="ct">El usuario esperaba a que terminara la cadena completa de llamadas, aunque parte de ese trabajo pudiera hacerse después.</div>
+    </div>
+</div>
+</div>
+
+<!-- SLIDE 3: QUÉ ES RABBITMQ -->
+<div class="slide bg-dots" data-s="2">
+<h2 class="tt fi"><span class="n">02.</span> ¿Qué es RabbitMQ?</h2>
+<p class="sd fi fd1">Un <b>broker de mensajería</b>: un intermediario al que le entregas un mensaje y él se encarga de hacerlo llegar. Implementa el protocolo estándar <b>AMQP 0-9-1</b>, así que Java y Python hablan exactamente el mismo idioma.</p>
+<div class="cg c4 fi fd2">
+    <div class="cd" style="text-align:center"><span class="ci">📮</span><div class="cn">Exchange</div><div class="ct">La "oficina de correos". Recibe el mensaje y decide a qué colas va, según su tipo y la routing key.</div></div>
+    <div class="cd" style="text-align:center"><span class="ci">📥</span><div class="cn">Queue (cola)</div><div class="ct">El buzón donde los mensajes esperan. Si el consumidor está caído, esperan ahí sin perderse.</div></div>
+    <div class="cd" style="text-align:center"><span class="ci">🔀</span><div class="cn">Binding</div><div class="ct">La regla que une un exchange con una cola: "mándame todo lo que empiece por <code>paciente.</code>".</div></div>
+    <div class="cd" style="text-align:center"><span class="ci">🏷️</span><div class="cn">Routing key</div><div class="ct">La etiqueta del mensaje (<code>paciente.creado</code>). El exchange la usa para decidir el reparto.</div></div>
+</div>
+<p class="sd fi fd3" style="margin-top:24px;margin-bottom:0"><b>La idea clave:</b> el emisor no le habla al receptor. Le habla al exchange, y ni siquiera sabe cuántos receptores hay.</p>
+</div>
+
+<!-- SLIDE 4: LOS DOS PATRONES -->
+<div class="slide bg-grad" data-s="3">
+<h2 class="tt fi"><span class="n">03.</span> Dos patrones, a propósito</h2>
+<p class="sd fi fd1">No implementamos uno solo: el proyecto usa los dos para que se pueda <b>comparar el contraste</b> en vivo.</p>
+<div class="vs-grid fi fd2">
+    <div class="vs-col">
+        <h3><span style="color:var(--a)">📢</span> Eventos (asíncrono)</h3>
+        <ul class="vs-items">
+            <li><span class="vi">🚀</span><div><b>Fire-and-forget:</b> publico y sigo. No espero respuesta ni sé quién escucha.</div></li>
+            <li><span class="vi">🛡️</span><div><b>Tolera caídas:</b> si el consumidor está apagado, el mensaje espera en su cola.</div></li>
+            <li><span class="vi">➕</span><div><b>Extensible:</b> añadir un consumidor nuevo no toca el código del emisor.</div></li>
+            <li><span class="vi">⚠️</span><div><b>Precio:</b> consistencia eventual. El dato tarda milisegundos en llegar.</div></li>
+        </ul>
+    </div>
+    <div class="vs-col">
+        <h3><span style="color:var(--p)">🔄</span> RPC (petición / respuesta)</h3>
+        <ul class="vs-items">
+            <li><span class="vi">⏱️</span><div><b>Bloqueante:</b> pregunto y espero la respuesta, con un timeout.</div></li>
+            <li><span class="vi">🎯</span><div><b>Dato fresco:</b> te contesta la fuente de la verdad, ahora mismo.</div></li>
+            <li><span class="vi">📭</span><div><b>Sin URLs:</b> el transporte ya es la cola. No hace falta Eureka para esto.</div></li>
+            <li><span class="vi">⚠️</span><div><b>Precio:</b> si nadie atiende la cola, no hay respuesta.</div></li>
+        </ul>
+    </div>
+</div>
+</div>
+
+<!-- SLIDE 5: TOPOLOGÍA -->
+<div class="slide bg-grid" data-s="4">
+<h2 class="tt fi"><span class="n">04.</span> La topología que montamos</h2>
+<p class="sd fi fd1">Tres exchanges, seis colas. Cada servicio declara la suya al arrancar; declarar es idempotente.</p>
+<table class="tbl fi fd2">
+    <thead><tr><th>Exchange</th><th>Tipo</th><th>Cola destino</th><th>Routing key / patrón</th></tr></thead>
+    <tbody>
+        <tr><td rowspan="3"><code>salud.events</code></td><td rowspan="3"><span class="bd ba">topic</span></td><td><code>pacientes.eventos.historial</code></td><td><code>historial.#</code></td></tr>
+        <tr><td><code>historial.eventos.pacientes</code></td><td><code>paciente.#</code></td></tr>
+        <tr><td><code>fastapi.eventos</code></td><td><code>paciente.#</code> + <code>historial.#</code></td></tr>
+        <tr><td rowspan="2"><code>salud.rpc</code></td><td rowspan="2"><span class="bd bp">direct</span></td><td><code>pacientes.rpc</code></td><td><code>pacientes.consulta</code></td></tr>
+        <tr><td><code>historial.rpc</code></td><td><code>historial.consulta</code></td></tr>
+        <tr><td><code>salud.dlx</code></td><td><span class="bd br">topic</span></td><td><code>salud.dlq</code></td><td><code>#</code> (todo)</td></tr>
+    </tbody>
+</table>
+<p class="sd fi fd3" style="margin-top:22px;margin-bottom:0"><b>¿Por qué una cola por servicio?</b> Si dos servicios compartieran cola, RabbitMQ <b>repartiría</b> los mensajes entre ellos. Cada consumidor necesita SU cola para recibir su propia copia.</p>
+</div>
+
+<!-- SLIDE 6: QUIÉN HABLA CON QUIÉN -->
+<div class="slide bg-dots" data-s="5">
+<h2 class="tt fi"><span class="n">05.</span> ¿Quién se comunica con quién?</h2>
+<p class="sd fi fd1">Nadie se llama directamente. Todos pasan por el broker, y por eso ninguno conoce la dirección del otro.</p>
+<div class="flow fi fd2" style="margin-bottom:22px">
+    <div class="node"><div class="nn">🏥 Pacientes</div><div class="nsub">Java · PostgreSQL</div></div>
+    <span class="arw">⇄</span>
+    <div class="node bus"><div class="nn">🐰 RabbitMQ</div><div class="nsub">salud.events / salud.rpc</div></div>
+    <span class="arw">⇄</span>
+    <div class="node"><div class="nn">📋 Historial</div><div class="nsub">Java · MongoDB</div></div>
+</div>
+<div class="flow fi fd3" style="margin-bottom:24px">
+    <span class="arw" style="font-size:1.6rem">↕</span>
+    <div class="node"><div class="nn">🐍 FastAPI</div><div class="nsub">Python · MySQL + MongoDB</div></div>
+</div>
+<table class="tbl fi fd4">
+    <thead><tr><th>Servicio</th><th>Publica</th><th>Consume</th><th>Atiende RPC</th><th>Pregunta por RPC</th></tr></thead>
+    <tbody>
+        <tr><td><b>Pacientes</b></td><td><code>paciente.*</code></td><td><code>historial.*</code></td><td><code>pacientes.rpc</code></td><td><code>historial.rpc</code></td></tr>
+        <tr><td><b>Historial</b></td><td><code>historial.*</code></td><td><code>paciente.*</code></td><td><code>historial.rpc</code></td><td><code>pacientes.rpc</code></td></tr>
+        <tr><td><b>FastAPI</b></td><td>—</td><td><code>paciente.*</code> + <code>historial.*</code></td><td>—</td><td><code>pacientes.rpc</code></td></tr>
+    </tbody>
+</table>
+</div>
+
+<!-- SLIDE 7: LIBRERÍAS -->
+<div class="slide bg-grad" data-s="6">
+<h2 class="tt fi"><span class="n">06.</span> Librerías y herramientas</h2>
+<p class="sd fi fd1">Cada lenguaje usa su cliente idiomático. El protocolo AMQP es lo que los hace compatibles.</p>
+<div class="cg c3 fi fd2">
+    <div class="cd">
+        <span class="ci">☕</span><div class="cn">Spring AMQP 4.1</div>
+        <div class="ct"><code>spring-boot-starter-amqp</code><br><br>Aporta <code>RabbitTemplate</code> (publicar y RPC) y <code>@RabbitListener</code> (consumir). Declara la topología sola a partir de los <code>@Bean</code>.</div>
+        <div style="margin-top:10px"><span class="bd bp">Java 25</span> <span class="bd bo">Spring Boot 4.1</span></div>
+    </div>
+    <div class="cd">
+        <span class="ci">🐍</span><div class="cn">aio-pika 10.0</div>
+        <div class="ct">Cliente AMQP <b>asíncrono</b> para Python. Se eligió sobre <code>pika</code> porque el resto del servicio es <code>async</code>: pika bloquearía el event loop.</div>
+        <div style="margin-top:10px"><span class="bd ba">asyncio</span> <span class="bd bv">connect_robust</span></div>
+    </div>
+    <div class="cd">
+        <span class="ci">📦</span><div class="cn">Jackson 3</div>
+        <div class="ct">Serializa los mensajes a JSON. En Spring Boot 4 vive en <code>tools.jackson</code> y la opción de fechas se movió a <code>DateTimeFeature</code>.</div>
+        <div style="margin-top:10px"><span class="bd bo">JSON</span> <span class="bd bp">ISO-8601</span></div>
+    </div>
+    <div class="cd">
+        <span class="ci">🐳</span><div class="cn">rabbitmq:4-management</div>
+        <div class="ct">La imagen del broker. La variante <code>-management</code> trae la <b>consola web</b> en el puerto 15672 para ver colas y mensajes en vivo.</div>
+    </div>
+    <div class="cd">
+        <span class="ci">☸️</span><div class="cn">Deployment + PVC</div>
+        <div class="ct"><code>k8s/02b-rabbitmq.yaml</code>. Con <code>strategy: Recreate</code> y un <code>RABBITMQ_NODENAME</code> fijo para que las colas durables sobrevivan al reinicio.</div>
+    </div>
+    <div class="cd">
+        <span class="ci">🔌</span><div class="cn">AMQP 0-9-1</div>
+        <div class="ct">El protocolo estándar. Es lo que permite que un <code>@RabbitListener</code> de Java conteste a una petición hecha desde Python sin adaptador alguno.</div>
+    </div>
+</div>
+</div>
+
+<!-- SLIDE 8: EL RETO MULTI-LENGUAJE -->
+<div class="slide bg-grid" data-s="7">
+<h2 class="tt fi"><span class="n">07.</span> El reto: que Java y Python se entiendan</h2>
+<p class="sd fi fd1">Por defecto, Spring escribe la clase Java del emisor en la cabecera <code>__TypeId__</code> y exige <b>esa misma clase</b> en el receptor. Eso rompe entre paquetes distintos, y con Python directamente no existe.</p>
+<div class="sl fi fd2">
+    <div>
+        <div class="cb"><span class="cmt">// La configuración que lo resuelve</span>
+<span class="tp">JacksonJsonMessageConverter</span> conv =
+    <span class="kw">new</span> <span class="tp">JacksonJsonMessageConverter</span>(mapper);
+
+conv.setTypePrecedence(
+    TypePrecedence.<span class="kw">INFERRED</span>);</div>
+        <ul class="fl" style="margin-top:16px">
+            <li><span class="ic">✔</span><div><b>INFERRED:</b> deduce el tipo del <b>parámetro del método</b> que recibe, ignorando la cabecera del emisor.</div></li>
+            <li><span class="ic">✔</span><div><b>FAIL_ON_UNKNOWN_PROPERTIES</b> desactivado: el emisor puede mandar campos de más sin romper al receptor.</div></li>
+        </ul>
+    </div>
+    <div>
+        <div class="cb"><span class="cmt"># El mismo mensaje, visto desde Python</span>
+{
+  <span class="str">"tipo"</span>: <span class="str">"paciente.creado"</span>,
+  <span class="str">"pacienteId"</span>: <span class="tp">4</span>,
+  <span class="str">"nombre"</span>: <span class="str">"Revision"</span>,
+  <span class="str">"apellido"</span>: <span class="str">"Rabbit"</span>,
+  <span class="str">"ocurridoEn"</span>: <span class="str">"2026-08-14T21:26:25"</span>
+}</div>
+        <ul class="fl" style="margin-top:16px">
+            <li><span class="ic">✔</span><div>El campo <b><code>tipo</code></b> repite la routing key <b>dentro del cuerpo</b>: el mensaje se explica solo, sin leer cabeceras AMQP.</div></li>
+            <li><span class="ic">✔</span><div>Fechas como texto <b>ISO-8601</b>, no como número, para que Python las entienda.</div></li>
+        </ul>
+    </div>
+</div>
+</div>
+
+<!-- SLIDE 9: PATRÓN EVENTOS -->
+<div class="slide bg-dots" data-s="8">
+<h2 class="tt fi"><span class="n">08.</span> Patrón 1: eventos y réplicas locales</h2>
+<p class="sd fi fd1">En vez de preguntar "¿qué historiales tiene el paciente 4?" cada vez, a cada servicio <b>se le va contando</b> cada cambio a medida que ocurre. Con eso mantiene su propia copia de lectura.</p>
+<div class="flow fi fd2" style="margin-bottom:26px">
+    <div class="node"><div class="nn">Crear paciente</div><div class="nsub">POST /api/pacientes</div></div>
+    <span class="arw">→</span>
+    <div class="node bus"><div class="nn">paciente.creado</div><div class="nsub">salud.events</div></div>
+    <span class="arw">→</span>
+    <div class="node"><div class="nn">pacientes_replica</div><div class="nsub">Historial · Mongo</div></div>
+    <span class="arw">+</span>
+    <div class="node"><div class="nn">fastapi_pacientes</div><div class="nsub">FastAPI · Mongo</div></div>
+</div>
+<div class="cg c3 fi fd3">
+    <div class="cd"><span class="ci">📋</span><div class="cn">Historial guarda <code>pacientes_replica</code></div><div class="ct">Ya puede validar "¿este paciente existe?" mirando su propia base, <b>sin llamar a nadie</b>.</div></div>
+    <div class="cd"><span class="ci">🏥</span><div class="cn">Pacientes guarda <code>historial_resumen</code></div><div class="ct">Responde <code>/pacientes/{id}/resumen</code> aunque el otro servicio esté <b>completamente caído</b>.</div></div>
+    <div class="cd"><span class="ci">🔔</span><div class="cn">FastAPI genera notificaciones</div><div class="ct">Cada <code>historial.creado</code> se convierte en un aviso: "tienes un registro médico nuevo".</div></div>
+</div>
+<p class="sd fi fd4" style="margin-top:22px;margin-bottom:0"><b>Idempotencia:</b> se usa el id del evento como clave primaria, así reprocesar el mismo mensaje deja el mismo resultado. Importa porque RabbitMQ garantiza <i>"al menos una vez"</i>, no <i>"exactamente una vez"</i>.</p>
+</div>
+
+<!-- SLIDE 10: PATRÓN RPC -->
+<div class="slide bg-grad" data-s="9">
+<h2 class="tt fi"><span class="n">09.</span> Patrón 2: RPC sobre la cola</h2>
+<p class="sd fi fd1">Sigue siendo pregunta y respuesta, pero el transporte ya no es HTTP: es la cola. Son tres propiedades de AMQP y nada más.</p>
+<div class="sl fi fd2">
+    <div>
+        <ul class="fl">
+            <li><span class="ic">1</span><div><b><code>reply_to</code></b> — la cola donde quiero la respuesta.</div></li>
+            <li><span class="ic">2</span><div><b><code>correlation_id</code></b> — para emparejar respuesta con pregunta, porque pueden llegar varias y desordenadas.</div></li>
+            <li><span class="ic">3</span><div><b><code>expiration</code></b> — cuánto vale la pregunta. Si caduca, el broker la descarta.</div></li>
+        </ul>
+        <div class="cb" style="margin-top:16px"><span class="cmt">// Servidor: devolver un valor YA publica la respuesta</span>
+<span class="kw">@RabbitListener</span>(queues = <span class="str">"pacientes.rpc"</span>)
+<span class="kw">public</span> <span class="tp">ConsultaPacienteRespuesta</span> responder(
+        <span class="tp">ConsultaPacienteRequest</span> request) { ... }</div>
+    </div>
+    <div>
+        <div class="cb"><span class="cmt"># Cliente Python, hecho a mano a propósito</span>
+<span class="kw">await</span> exchange.publish(
+    aio_pika.Message(
+        body=json.dumps({<span class="str">"pacienteId"</span>: pid}).encode(),
+        content_type=<span class="str">"application/json"</span>,
+        correlation_id=correlation_id,
+        reply_to=_cola_respuestas.name,
+        expiration=TIMEOUT_SEGUNDOS,
+    ),
+    routing_key=<span class="str">"pacientes.consulta"</span>,
+)</div>
+        <p style="font-size:.82rem;color:var(--t);margin-top:14px;line-height:1.6">No se usó <code>aio_pika.patterns.RPC</code> porque serializa con <b>pickle</b> y Spring no lo entiende. El protocolo crudo de AMQP sí es común a los dos.</p>
+    </div>
+</div>
+</div>
+
+<!-- SLIDE 11: FIABILIDAD -->
+<div class="slide bg-grid" data-s="10">
+<h2 class="tt fi"><span class="n">10.</span> Que no se pierda nada</h2>
+<p class="sd fi fd1">Una cola sin red de seguridad es peor que una llamada HTTP: el fallo se vuelve invisible. Esto es lo que se configuró.</p>
+<div class="cg c3 fi fd2">
+    <div class="cd"><span class="ci">💾</span><div class="cn">Durabilidad</div><div class="ct">Exchanges y colas <code>durable</code>, mensajes persistentes y un volumen para el broker: todo sobrevive a un reinicio.</div></div>
+    <div class="cd"><span class="ci">✅</span><div class="cn">ACK + reintentos</div><div class="ct">El mensaje se confirma solo si se procesó bien. Si falla, 3 intentos con espera creciente.</div></div>
+    <div class="cd"><span class="ci">☠️</span><div class="cn">Dead Letter Queue</div><div class="ct">Agotados los intentos, el mensaje va a <code>salud.dlq</code> en vez de reencolarse para siempre y bloquear la cola.</div></div>
+    <div class="cd"><span class="ci">⏲️</span><div class="cn">TTL en las peticiones RPC</div><div class="ct">Si el cliente ya se rindió, la pregunta caduca. Nadie calcula una respuesta que nadie espera.</div></div>
+    <div class="cd"><span class="ci">🔒</span><div class="cn">Publicar tras el commit</div><div class="ct">El evento sale <b>después</b> de confirmar en PostgreSQL. Si el commit falla, no se anuncia algo que nunca ocurrió.</div></div>
+    <div class="cd"><span class="ci">🩹</span><div class="cn">Degradación elegante</div><div class="ct">Si el RPC no contesta: 503 (servicio caído), nunca 404. Un timeout no es "el dato no existe".</div></div>
+</div>
+</div>
+
+<!-- SLIDE 12: DEMO -->
+<div class="slide bg-dots" data-s="11">
+<h2 class="tt fi"><span class="n">11.</span> Demo: verlo funcionando</h2>
+<p class="sd fi fd1">La consola web es el mejor apoyo visual: se ven las colas, los consumidores y los mensajes acumulados en tiempo real.</p>
+<div class="sl fi fd2">
+    <div>
+        <div class="cb"><span class="cmt"># 1. Levantar todo (RabbitMQ incluido)</span>
+docker compose up --build -d
+
+<span class="cmt"># 2. Consola web -> http://localhost:15672</span>
+<span class="cmt">#    usuario y clave: los del .env</span>
+
+<span class="cmt"># 3. Ver la topología desde la terminal</span>
+docker exec rabbitmq-salud \
+  rabbitmqctl list_queues name messages consumers</div>
+    </div>
+    <div>
+        <div class="cb"><span class="cmt"># El contraste entre los dos patrones</span>
+
+<span class="cmt"># RPC: dato fresco, exige al otro vivo</span>
+GET /api/pacientes/4/historial
+
+<span class="cmt"># Eventos: réplica local, responde siempre</span>
+GET /api/pacientes/4/resumen</div>
+        <ul class="fl" style="margin-top:16px">
+            <li><span class="ic">🧪</span><div><b>Apaga <code>historial-medico-service</code></b> y repite las dos. La primera degrada a lista vacía; la segunda <b>sigue respondiendo igual</b>.</div></li>
+            <li><span class="ic">🧪</span><div>Míralo también en <code>/api/consultas/notificaciones</code>: FastAPI se enteró <b>sin preguntarle nada a nadie</b>.</div></li>
+        </ul>
+    </div>
+</div>
+</div>
+
+<!-- SLIDE 13: ANTES VS DESPUÉS -->
+<div class="slide bg-grad" data-s="12">
+<h2 class="tt fi"><span class="n">12.</span> Antes y después</h2>
+<p class="sd fi fd1">Lo que cambió de verdad en la arquitectura del sistema.</p>
+<table class="tbl fi fd2">
+    <thead><tr><th>Aspecto</th><th>Antes (HTTP + Eureka)</th><th>Ahora (RabbitMQ)</th></tr></thead>
+    <tbody>
+        <tr><td><b>Acoplamiento</b></td><td>Cada servicio conocía la URL del otro</td><td>Solo conocen el nombre de un exchange</td></tr>
+        <tr><td><b>Si el otro se cae</b></td><td>Falla la operación completa</td><td>El mensaje espera en la cola</td></tr>
+        <tr><td><b>Añadir un consumidor</b></td><td>Hay que tocar el emisor</td><td>Basta con crear una cola y enlazarla</td></tr>
+        <tr><td><b>Picos de carga</b></td><td>Golpean directo al servicio</td><td>La cola amortigua y regula el ritmo</td></tr>
+        <tr><td><b>Clases eliminadas</b></td><td><code>PacienteClient</code>, <code>HistorialMedicoClient</code></td><td>Sustituidas por publishers y listeners</td></tr>
+        <tr><td><b>Rol de Eureka</b></td><td>Comunicación entre servicios</td><td>Solo enrutar desde el Gateway</td></tr>
+    </tbody>
+</table>
+<p class="sd fi fd3" style="margin-top:22px;margin-bottom:0"><b>Lo que NO cambió:</b> la API REST hacia el usuario es la misma. La mensajería es un detalle interno.</p>
+</div>
+
+<!-- SLIDE 14: CIERRE -->
+<div class="slide bg-grid" data-s="13">
+<div style="text-align:center">
+    <div style="font-size:70px; margin-bottom:20px" class="fi af">🎓</div>
+    <h1 class="st fi fd1" style="max-width:820px">Conclusión</h1>
+    <p class="ss fi fd2" style="font-size:1.3rem">RabbitMQ no hace el sistema más rápido: lo hace <b>más resistente</b>.</p>
+    <p class="ss fi fd3">Se gana desacoplamiento, tolerancia a fallos y capacidad de crecer sin tocar lo que ya funciona. Se paga con consistencia eventual y una pieza más que operar. Por eso el proyecto conserva los <b>dos patrones</b>: para poder elegir con criterio en cada caso.</p>
+    <div style="margin-top:30px" class="fi fd4">
+        <a href="index.html" class="bd ba" style="text-decoration:none;font-size:1rem;padding:10px 20px">Volver a la Presentación Principal</a>
+    </div>
+</div>
+</div>
+
+</div>
+
+<!-- NAV -->
+<nav class="nav">
+    <div class="nl">
+        <img src="https://www.eia.edu.co/wp-content/uploads/2024/05/Favicon-new-100x100.webp" alt="EIA">
+        <span class="ns">|</span>
+        <span class="nt">RabbitMQ · Mensajería entre microservicios</span>
+    </div>
+    <div class="nc" id="dots"></div>
+    <div class="nr">
+        <span class="nc2"><span id="cur">1</span> / <span id="tot">14</span></span>
+        <button class="nb" onclick="prev()" title="← Anterior">‹</button>
+        <button class="nb" onclick="next()" title="→ Siguiente">›</button>
+    </div>
+</nav>
+
+<script>
+const S=document.querySelectorAll('.slide'),T=S.length;let I=0;
+document.getElementById('tot').textContent=T;
+const D=document.getElementById('dots');
+for(let i=0;i<T;i++){const d=document.createElement('div');d.className='nd'+(i===0?' act':'');d.onclick=()=>go(i);D.appendChild(d)}
+function upd(){S.forEach((s,i)=>{s.classList.remove('active','prev');if(i===I)s.classList.add('active');else if(i<I)s.classList.add('prev')});document.querySelectorAll('.nd').forEach((d,i)=>d.classList.toggle('act',i===I));document.getElementById('cur').textContent=I+1;document.getElementById('pb').style.width=(I/(T-1)*100)+'%'}
+function next(){if(I<T-1){I++;upd()}}
+function prev(){if(I>0){I--;upd()}}
+function go(i){I=i;upd()}
+document.addEventListener('keydown',e=>{switch(e.key){case'ArrowRight':case'ArrowDown':case' ':case'Enter':e.preventDefault();next();break;case'ArrowLeft':case'ArrowUp':case'Backspace':e.preventDefault();prev();break;case'Home':e.preventDefault();go(0);break;case'End':e.preventDefault();go(T-1);break}});
+let tx=0;document.addEventListener('touchstart',e=>{tx=e.touches[0].clientX});document.addEventListener('touchend',e=>{const d=tx-e.changedTouches[0].clientX;if(Math.abs(d)>50){d>0?next():prev()}});
+</script>
+</body>
+</html>
