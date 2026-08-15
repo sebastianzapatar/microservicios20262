@@ -29,6 +29,17 @@ EV_PACIENTE_ACTUALIZADO = "paciente.actualizado"
 EV_HISTORIAL_CREADO = "historial.creado"
 EV_HISTORIAL_ACTUALIZADO = "historial.actualizado"
 
+# ---------- Configuración de los topics ----------
+# DEBE coincidir con lo que declaran los KafkaConfig.java. Este servicio también
+# los crea, y no solo por simetría: si FastAPI arranca antes que los servicios
+# Java (cosa que pasa a menudo con Docker Compose), suscribirse a un topic que
+# todavía no existe hace que aiokafka repita "Topic not found in cluster
+# metadata" miles de veces por segundo hasta que aparezca. Crearlos aquí evita
+# ese ruido y permite que este servicio arranque solo contra un clúster vacío.
+PARTICIONES = 3
+REPLICAS = 1
+CONFIG_TOPICS = {"cleanup.policy": "compact"}
+
 # ---------- Colecciones de MongoDB ----------
 # Van prefijadas con "fastapi_" porque este servicio comparte la base
 # historial_medico_db con historial-medico-service, que ya tiene su propia

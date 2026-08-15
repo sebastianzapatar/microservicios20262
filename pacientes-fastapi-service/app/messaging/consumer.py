@@ -19,6 +19,7 @@ import logging
 from datetime import datetime, timezone
 
 from aiokafka import AIOKafkaConsumer
+from aiokafka.admin import AIOKafkaAdminClient, NewTopic
 
 from app.core.config import settings
 from app.db.mongodb import get_mongo_db
@@ -28,6 +29,36 @@ logger = logging.getLogger(__name__)
 
 _consumidor: AIOKafkaConsumer | None = None
 _tarea: asyncio.Task | None = None
+
+
+async def _asegurar_topics() -> None:
+    """Crea los topics si no existen, con los MISMOS argumentos que el lado Java.
+
+    Crear un topic que ya existe lanza TopicAlreadyExistsError, que aquí se
+    ignora: la operación es idempotente a propósito, igual que la declaración de
+    colas en la rama de RabbitMQ.
+    """
+    admin = AIOKafkaAdminClient(bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS)
+    await admin.start()
+    try:
+        nuevos = [
+            NewTopic(
+                name=nombre,
+                num_partitions=topology.PARTICIONES,
+                replication_factor=topology.REPLICAS,
+                topic_configs=topology.CONFIG_TOPICS,
+            )
+            for nombre in (topology.TOPIC_PACIENTES, topology.TOPIC_HISTORIALES)
+        ]
+        try:
+            await admin.create_topics(nuevos)
+            logger.info("Topics asegurados: '%s' y '%s'",
+                        topology.TOPIC_PACIENTES, topology.TOPIC_HISTORIALES)
+        except Exception as e:
+            # Lo normal es que ya existan porque los creó un servicio Java.
+            logger.debug("Los topics ya existían (%s)", type(e).__name__)
+    finally:
+        await admin.close()
 
 
 def _deserializar(raw: bytes | None):
@@ -54,6 +85,11 @@ async def iniciar_consumidor(intentos: int = 15, espera: int = 4) -> bool:
 
     for intento in range(1, intentos + 1):
         try:
+            # Antes de suscribirse: si los topics no existen todavía, aiokafka
+            # entra en un bucle de "Topic not found in cluster metadata" que
+            # llena el log con miles de líneas por segundo.
+            await _asegurar_topics()
+
             _consumidor = AIOKafkaConsumer(
                 topology.TOPIC_PACIENTES,
                 topology.TOPIC_HISTORIALES,
