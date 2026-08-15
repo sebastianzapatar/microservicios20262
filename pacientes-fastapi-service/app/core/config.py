@@ -28,6 +28,11 @@ class Settings:
     MONGO_PORT: str = os.getenv("MONGO_PORT", "27017")
     MONGO_URI: str = f"mongodb://{MONGO_USER}:{MONGO_PASSWORD}@{MONGO_HOST}:{MONGO_PORT}/{MONGO_DB}?authSource=admin"
 
+    # Kafka. El puerto por defecto es el INTERNO del contenedor (9092): este
+    # servicio se conecta desde dentro de la red de Docker. Desde tu máquina el
+    # broker se anuncia en localhost:9094.
+    KAFKA_BOOTSTRAP_SERVERS: str = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka-salud:9092")
+
     # Security (JWT Propio para este microservicio)
     SECRET_KEY: str = os.getenv("SECRET_KEY", "super-secret-key-fastapi-mysql")
     ALGORITHM: str = "HS256"

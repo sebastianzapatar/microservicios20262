@@ -44,6 +44,14 @@ dependencies {
     // Eureka Client
     implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client'
 
+    // Kafka - log de eventos entre microservicios.
+    // OJO: tiene que ser el STARTER, no 'org.springframework.kafka:spring-kafka'
+    // a secas. En Spring Boot 4 las autoconfiguraciones se repartieron en
+    // módulos propios, así que la librería suelta trae las clases pero NO crea
+    // el KafkaTemplate ni la factory de @KafkaListener: el arranque falla con
+    // "required a bean of type 'KafkaTemplate' that could not be found".
+    implementation 'org.springframework.boot:spring-boot-starter-kafka'
+
     // Validation
     implementation 'org.springframework.boot:spring-boot-starter-validation'
 

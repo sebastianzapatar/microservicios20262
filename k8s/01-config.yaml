@@ -18,6 +18,11 @@ data:
   # Los Services de Kubernetes crean estos nombres DNS dentro del clúster.
   EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "http://eureka-server:8761/eureka/"
 
+  # Kafka: nombre del Service seguido del puerto, resoluble por DNS desde
+  # cualquier Pod. Kafka no lleva usuario ni contraseña en este montaje de
+  # clase, así que va en el ConfigMap y no en el Secret.
+  KAFKA_BOOTSTRAP_SERVERS: "kafka-salud:9092"
+
   # ISSUER_URI: URL PÚBLICA de Keycloak. Es el valor del claim "iss" que viaja
   # dentro del token, y es contra el que los servicios comparan. Como el
   # tutorial accede a Keycloak con "kubectl port-forward ... 8080:8080",

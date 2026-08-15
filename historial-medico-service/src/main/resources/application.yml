@@ -11,6 +11,44 @@ spring:
   mongodb:
     uri: mongodb://admin:admin123@localhost:27017/historial_medico_db?authSource=admin
 
+  # Kafka - log de eventos entre microservicios
+  kafka:
+    bootstrap-servers: localhost:9094
+
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      acks: all
+      properties:
+        # Evita duplicados si el productor reintenta tras un fallo de red.
+        enable.idempotence: true
+        # NO escribir la clase Java del emisor en una cabecera. Por defecto
+        # Spring Kafka la manda y el receptor exige esa MISMA clase, lo que
+        # rompe entre paquetes distintos y es imposible con Python.
+        spring.json.add.type.headers: false
+
+    consumer:
+      # Grupo propio: distinto al de los demás servicios, con sus propios
+      # offsets. Por eso los tres reciben una copia de cada mensaje aunque lean
+      # el mismo topic.
+      group-id: historial-medico-service
+      # earliest: al arrancar por primera vez lee desde el offset 0 y reconstruye
+      # la réplica de pacientes con TODA la historia. Esto es lo que hace
+      # innecesario el RPC de respaldo que sí tenía la rama de RabbitMQ.
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+      key-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      properties:
+        # ErrorHandlingDeserializer envuelve al de verdad para que un mensaje
+        # corrupto no tumbe al consumidor: sin esto el fallo ocurre ANTES de que
+        # exista el listener y el consumidor entra en un bucle infinito.
+        spring.deserializer.key.delegate.class: org.apache.kafka.common.serialization.StringDeserializer
+        spring.deserializer.value.delegate.class: org.springframework.kafka.support.serializer.JsonDeserializer
+        spring.json.use.type.headers: false
+        spring.json.value.default.type: com.salud.historial.dto.evento.PacienteEvento
+        spring.json.trusted.packages: "*"
+
   # OAuth2 Resource Server - Keycloak JWT
   security:
     oauth2:
@@ -34,6 +72,11 @@ logging:
   level:
     com.salud.historial: DEBUG
     org.springframework.security: DEBUG
+    # Sube a DEBUG para ver cada mensaje que entra y sale del broker.
+    org.springframework.kafka: INFO
+    # En WARN porque el cliente de Kafka avisa muy ruidosamente mientras el
+    # broker todavía está arrancando.
+    org.apache.kafka.clients: WARN
 
 # Actuator - health checks para Docker Compose y Kubernetes (probes)
 management:

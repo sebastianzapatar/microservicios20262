@@ -34,9 +34,16 @@ public class PacienteController {
     }
 
     /**
-     * Endpoint que demuestra la comunicación inter-servicio.
-     * Obtiene los datos del paciente junto con su historial médico
-     * llamando al microservicio de Historial Médico via HTTP + Eureka.
+     * Endpoint que demuestra la comunicación inter-servicio por eventos.
+     *
+     * Devuelve el paciente junto con su historial médico SIN llamar a nadie:
+     * lee la tabla local historial_resumen, que se mantiene al día consumiendo
+     * el topic "salud.historiales" de Kafka.
+     *
+     * Para verlo en clase: apaga historial-medico-service y vuelve a llamar a
+     * este endpoint. Sigue respondiendo con todos los datos, porque no depende
+     * de que el otro servicio esté vivo. El campo "sincronizadoHasta" indica
+     * hasta qué momento llegó la réplica.
      */
     @GetMapping("/{id}/historial")
     public ResponseEntity<PacienteService.PacienteConHistorialResponse> obtenerConHistorial(@PathVariable Long id) {

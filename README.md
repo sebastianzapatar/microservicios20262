@@ -15,11 +15,113 @@ El ecosistema está compuesto por **5 microservicios**, **3 bases de datos** y u
 4. **📋 Historial Médico (`puerto 8082`)**: Desarrollado en Java (Spring Boot + MongoDB). Almacena los historiales clínicos flexibles en **MongoDB**.
 5. **🐍 Usuarios FastAPI (`puerto 8083`)**: Desarrollado en Python. Gestiona el registro y login emitiendo tokens JWT propios, y almacena a los usuarios en **MySQL**. Además, permite consultar el historial médico en MongoDB.
 
-### Bases de Datos y Seguridad
+### Bases de Datos, Mensajería y Seguridad
 - **PostgreSQL**: Datos transaccionales estructurados (Pacientes).
 - **MongoDB**: Documentos no relacionales flexibles (Historiales Médicos).
 - **MySQL**: Credenciales y registros de usuarios (FastAPI).
+- **Apache Kafka (`puerto 9094`)**: Log de eventos por el que se comunican los tres
+  servicios de negocio. Consola web en el `puerto 8091`.
 - **Keycloak (`puerto 8080`)**: Servidor centralizado para emisión de tokens OAuth2/OIDC.
+
+### Librerías de mensajería
+| Servicio | Lenguaje | Librería | Por qué esa |
+| :--- | :--- | :--- | :--- |
+| Pacientes · Historial | Java | `spring-boot-starter-kafka` | Aporta `KafkaTemplate` y `@KafkaListener`. **Tiene que ser el starter**: en Spring Boot 4 la librería `spring-kafka` suelta no trae la autoconfiguración |
+| FastAPI | Python | `aiokafka` | Cliente asíncrono. `kafka-python` es bloqueante y congelaría el event loop |
+
+---
+
+## 🌊 Comunicación por eventos con Apache Kafka
+
+En esta rama los microservicios **ya no se llaman entre sí por HTTP**. Se comunican
+publicando y leyendo eventos en Kafka, y las clases `HistorialMedicoClient` y
+`PacienteClient` (que resolvían la URL del otro servicio con Eureka) desaparecieron.
+Eureka sigue existiendo, pero solo para que el Gateway sepa enrutar.
+
+### La idea que lo explica todo
+
+En una **cola** (RabbitMQ) el mensaje se **borra** cuando alguien lo consume.
+En Kafka el mensaje se queda en un **log** y cada consumidor lleva su propio
+marcador (*offset*) de por dónde va. Nadie vacía nada.
+
+De ahí salen todas las diferencias:
+
+| | Cola (RabbitMQ) | Log (Kafka) |
+| :--- | :--- | :--- |
+| Al consumir | El mensaje se borra | Se queda; solo avanza tu offset |
+| Copia por servicio | Cada uno necesita **su cola** | Todos leen **el mismo topic**, con distinto *consumer group* |
+| Un servicio nuevo | Solo ve lo que llegue a partir de ahora | Puede leer **desde el offset 0** y ponerse al día con todo |
+| Orden garantizado | Por cola | Por **partición**, y la clave del mensaje elige la partición |
+| Reprocesar | Imposible, ya no están | Se rebobina el grupo y se vuelve a leer |
+
+### Topics
+
+| Topic | Quién escribe | Quién lee | Clave | Política |
+| :--- | :--- | :--- | :--- | :--- |
+| `salud.pacientes` | Pacientes | Historial · FastAPI | `pacienteId` | `compact` |
+| `salud.historiales` | Historial | Pacientes · FastAPI | `historialId` | `compact` |
+| `salud.*-dlt` | El error handler | (inspección manual) | — | 7 días |
+
+Los topics de negocio son **compactados**: Kafka conserva para siempre el último
+mensaje de cada clave, así que el topic funciona además como una *tabla* con el
+estado actual de cada entidad. Los borrados se publican como **tombstone** (un
+mensaje con la clave y el cuerpo `null`), que es la forma canónica de eliminar
+una clave de un topic compactado.
+
+### Por qué esta rama NO tiene RPC
+
+La rama `rabbitmq` implementaba **dos** patrones: eventos y RPC (petición/respuesta
+por cola). El RPC hacía falta porque la cola arrancaba vacía: los pacientes creados
+antes de que existiera la cola nunca llegaban, así que el servicio de historiales
+necesitaba un respaldo para preguntar por ellos.
+
+Con Kafka ese problema no existe. El log está entero y compactado, y los consumidores
+arrancan con `auto-offset-reset: earliest`, así que al primer arranque reconstruyen su
+réplica con **toda** la historia. No hay a quién preguntar porque ya lo tienes todo.
+Kafka empuja hacia el *event-carried state transfer*, y forzarle un request/reply
+encima sería ir contra su diseño.
+
+### Cada servicio y su réplica local
+
+- **Pacientes** consume `salud.historiales` → tabla `historial_resumen` (PostgreSQL).
+  Sirve `/api/pacientes/{id}/historial` **sin llamar a nadie**.
+- **Historial** consume `salud.pacientes` → colección `pacientes_replica` (MongoDB).
+  Valida "¿este paciente existe?" contra su propia base.
+- **FastAPI** consume **los dos** → `fastapi_pacientes` y `fastapi_notificaciones`.
+
+### Verlo funcionando
+
+```bash
+# Consola web: topics, particiones, mensajes y lag de cada grupo
+open http://localhost:8091
+
+# Los topics y su configuración
+docker exec kafka-salud /opt/kafka/bin/kafka-topics.sh \
+  --bootstrap-server localhost:9092 --describe --topic salud.pacientes
+
+# Los tres consumer groups, cada uno con sus propios offsets
+docker exec kafka-salud /opt/kafka/bin/kafka-consumer-groups.sh \
+  --bootstrap-server localhost:9092 --list
+
+# El contenido del log, tombstones incluidos (valor null)
+docker exec kafka-salud /opt/kafka/bin/kafka-console-consumer.sh \
+  --bootstrap-server localhost:9092 --topic salud.historiales \
+  --from-beginning --property print.key=true --timeout-ms 5000
+```
+
+**La demo que mejor se ve en clase** — reconstruir una réplica desde cero:
+
+```bash
+docker stop pacientes-service                       # el grupo debe quedar sin miembros
+docker exec postgres-salud psql -U admin -d pacientes_db -c "truncate table historial_resumen;"
+docker exec kafka-salud /opt/kafka/bin/kafka-consumer-groups.sh \
+  --bootstrap-server localhost:9092 --group pacientes-service \
+  --topic salud.historiales --reset-offsets --to-earliest --execute
+docker start pacientes-service                      # reproduce el log y se rehace sola
+```
+
+La tabla se reconstruye reproduciendo el log. Con una cola esto sería imposible:
+los mensajes ya consumidos habrían desaparecido del broker.
 
 ---
 
@@ -81,7 +183,7 @@ curl -X POST "http://localhost:8090/api/pacientes" \
      "fechaNacimiento":"1990-05-20","direccion":"Calle 10","tipoDocumento":"CC","numeroDocumento":"1001"}'
 ```
 
-**3. Crear un historial médico** (MongoDB). Este endpoint valida que el paciente exista **llamando al otro microservicio** vía Eureka:
+**3. Crear un historial médico** (MongoDB). Este endpoint valida que el paciente exista contra su **réplica local**, que se mantiene al día consumiendo el topic `salud.pacientes`. No hay ninguna llamada al otro microservicio:
 ```bash
 curl -X POST "http://localhost:8090/api/historiales" \
 -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
@@ -89,11 +191,16 @@ curl -X POST "http://localhost:8090/api/historiales" \
      "medico":"Dr. Perez","tipoConsulta":"General","notas":"Control en 5 dias"}'
 ```
 
-**4. Ver la comunicación inter-servicio en acción** (Pacientes ➜ Eureka ➜ Historial):
+**4. Ver la comunicación por eventos en acción** (Pacientes lee su réplica local):
 ```bash
 curl "http://localhost:8090/api/pacientes/1/historial" -H "Authorization: Bearer $TOKEN"
 ```
-La respuesta combina datos de **PostgreSQL** y de **MongoDB**, obtenidos por dos microservicios distintos.
+La respuesta combina datos de **PostgreSQL** con el historial que llegó por Kafka.
+El campo `sincronizadoHasta` indica hasta qué momento llegó la réplica.
+
+> 🧪 **Apaga `historial-medico-service` y vuelve a llamar a este endpoint.**
+> Sigue respondiendo con todos los datos, porque ya no depende de que el otro
+> servicio esté vivo. Eso es lo que se gana al desacoplar por eventos.
 
 ### B. Flujo con el JWT propio de FastAPI
 

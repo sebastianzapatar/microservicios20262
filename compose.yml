@@ -55,6 +55,73 @@ services:
     networks:
       - salud-network
 
+  # Broker de eventos. Sustituye las llamadas HTTP directas entre microservicios
+  # por un LOG de eventos: a diferencia de una cola, aquí el mensaje NO se borra
+  # al leerlo. Cada servicio lleva su propio marcador (offset) y puede volver a
+  # leer desde el principio, que es lo que permite reconstruir una réplica local
+  # sin preguntarle nada a nadie.
+  kafka:
+    image: apache/kafka:4.0.0
+    container_name: kafka-salud
+    # Modo KRaft: desde Kafka 4 ya no existe ZooKeeper. El mismo proceso hace de
+    # broker y de controller, así que un solo contenedor basta para la clase.
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka-salud:9093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      # Dos listeners a propósito:
+      #   INTERNAL (9092) -> lo usan los microservicios DENTRO de la red Docker.
+      #   EXTERNAL (9094) -> lo usa tu máquina si quieres conectarte desde fuera.
+      # Kafka le dice al cliente a qué dirección debe volver a conectarse
+      # (advertised.listeners). Si esto está mal, el cliente conecta la primera
+      # vez y falla en la segunda: es el error más típico al dockerizar Kafka.
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093,EXTERNAL://0.0.0.0:9094
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka-salud:9092,EXTERNAL://localhost:${KAFKA_EXTERNAL_PORT}
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      # Con un solo broker no se puede replicar nada: si estos valores quedaran
+      # en 3 (el defecto), los topics internos no se crearían y Kafka no arranca.
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      CLUSTER_ID: salud-kafka-cluster-01
+    ports:
+      - "${KAFKA_EXTERNAL_PORT}:9094"
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    healthcheck:
+      # Listar los topics obliga al broker a responder de verdad, no solo a
+      # tener el puerto abierto.
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 15
+      start_period: 30s
+    networks:
+      - salud-network
+
+  # Consola web para ver topics, particiones, mensajes y el retraso (lag) de
+  # cada consumer group. Es el equivalente a la consola de RabbitMQ y el mejor
+  # apoyo visual para explicar los offsets en clase.
+  kafka-ui:
+    image: kafbat/kafka-ui:latest
+    container_name: kafka-ui-salud
+    environment:
+      KAFKA_CLUSTERS_0_NAME: salud
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka-salud:9092
+      DYNAMIC_CONFIG_ENABLED: "true"
+    ports:
+      - "${KAFKA_UI_PORT}:8080"
+    depends_on:
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - salud-network
+
   keycloak:
     image: quay.io/keycloak/keycloak:25.0
     container_name: keycloak-salud
@@ -126,8 +193,13 @@ services:
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-server:8761/eureka/
       - SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI=http://localhost:8080/realms/salud-system
       - SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI=http://keycloak-salud:8080/realms/salud-system/protocol/openid-connect/certs
+      # Kafka. El puerto es el INTERNO del listener de la red Docker (9092),
+      # no ${KAFKA_EXTERNAL_PORT}, que es el que se publica hacia el host.
+      - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka-salud:9092
     depends_on:
       postgres:
+        condition: service_healthy
+      kafka:
         condition: service_healthy
       eureka-server:
         condition: service_started
@@ -149,8 +221,13 @@ services:
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-server:8761/eureka/
       - SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI=http://localhost:8080/realms/salud-system
       - SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI=http://keycloak-salud:8080/realms/salud-system/protocol/openid-connect/certs
+      # Kafka. El puerto es el INTERNO del listener de la red Docker (9092),
+      # no ${KAFKA_EXTERNAL_PORT}, que es el que se publica hacia el host.
+      - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka-salud:9092
     depends_on:
       mongodb:
+        condition: service_healthy
+      kafka:
         condition: service_healthy
       eureka-server:
         condition: service_started
@@ -185,10 +262,15 @@ services:
       - EUREKA_SERVER=http://eureka-server:8761/eureka/
       - INSTANCE_HOST=pacientes-fastapi-service
       - PACIENTES_FASTAPI_PORT=8083
+      # Kafka. Igual que con MySQL, el puerto es el INTERNO (9092) y no
+      # ${KAFKA_EXTERNAL_PORT}, que es el publicado hacia el host.
+      - KAFKA_BOOTSTRAP_SERVERS=kafka-salud:9092
     depends_on:
       mongodb:
         condition: service_healthy
       mysql:
+        condition: service_healthy
+      kafka:
         condition: service_healthy
       eureka-server:
         condition: service_started
@@ -200,6 +282,9 @@ volumes:
   postgres_data:
   mongo_data:
   mysql_data:
+  # Persiste el LOG de eventos entre reinicios. Es lo que permite que un
+  # servicio nuevo (o reinstalado desde cero) reproduzca toda la historia.
+  kafka_data:
 
 networks:
   salud-network:

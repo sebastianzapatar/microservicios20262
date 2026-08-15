@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
 import py_eureka_client.eureka_client as eureka_client
@@ -6,7 +7,12 @@ import py_eureka_client.eureka_client as eureka_client
 from app.core.config import settings
 from app.db.mysql import engine, Base
 from app.db.mongodb import connect_to_mongo, close_mongo_connection
+from app.messaging import consumer
 from app.routers import auth, consultas
+
+# Uvicorn no configura el logger raíz, así que sin esto los mensajes de
+# app.messaging.* (eventos recibidos, particiones, offsets) no se verían.
+logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s - %(message)s")
 
 
 async def init_mysql(intentos: int = 15, espera: int = 4):
@@ -36,6 +42,12 @@ async def lifespan(app: FastAPI):
     # Inicializar MongoDB
     await connect_to_mongo()
 
+    # Arrancar el consumidor de Kafka. Se hace DESPUÉS de Mongo porque escribe
+    # en Mongo en cuanto llega el primer mensaje. Si el broker no responde, el
+    # servicio arranca en modo degradado: los endpoints REST siguen atendiendo.
+    if not await consumer.iniciar_consumidor():
+        print("Kafka no disponible: el servicio arranca sin consumidor de eventos")
+
     # Iniciar registro en Eureka (de forma asincrónica si es posible)
     # Py_eureka_client tiene un método asíncrono
     registrado = False
@@ -60,6 +72,7 @@ async def lifespan(app: FastAPI):
             await eureka_client.stop_async()
         except Exception as e:
             print(f"Error al darse de baja de Eureka: {e}")
+    await consumer.cerrar()
     await close_mongo_connection()
 
 
@@ -74,4 +87,8 @@ app.include_router(consultas.router)
 
 @app.get("/health")
 async def health_check():
-    return {"status": "up"}
+    # "status" se mantiene siempre en "up" mientras el proceso responda: es la
+    # readiness probe de Docker y Kubernetes, y el servicio sigue sirviendo sus
+    # endpoints REST aunque el broker esté caído. El estado de Kafka se informa
+    # aparte para poder diagnosticarlo sin tumbar el pod.
+    return {"status": "up", "kafka": "up" if consumer.esta_conectado() else "down"}
