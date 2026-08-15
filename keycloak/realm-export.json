@@ -1,7 +1,7 @@
 {
   "realm": "salud-system",
   "enabled": true,
-  "sslRequired": "external",
+  "sslRequired": "none",
   "registrationAllowed": false,
   "clients": [
     {
