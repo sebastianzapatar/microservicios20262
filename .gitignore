@@ -54,6 +54,7 @@ target/
 .env.local
 
 # OS generated files
+.firecrawl/
 .DS_Store
 .DS_Store?
 ._*
