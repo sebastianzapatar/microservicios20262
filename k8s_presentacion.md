@@ -95,12 +95,17 @@ La carpeta `k8s/` describe el sistema completo: 3 bases de datos, Keycloak y 5 m
 
 | Archivo | Qué crea | Por qué va en ese orden |
 | :--- | :--- | :--- |
+| `00-namespace.yaml` | Namespace `salud` | La "carpeta" del clúster donde vive todo |
 | `01-config.yaml` | ConfigMap + Secret | Los demás Pods leen sus variables de aquí |
 | `02-databases.yaml` | PostgreSQL · MongoDB · MySQL (+ PVC) | Los servicios necesitan sus bases listas |
 | `03-keycloak.yaml` | Identity Provider | Emite los tokens JWT |
 | `04-eureka.yaml` | Service Discovery | Todos se registran aquí al arrancar |
 | `05-microservices.yaml` | Pacientes · Historial · FastAPI | Se registran en Eureka |
 | `06-gateway.yaml` | API Gateway (NodePort) | Único servicio expuesto hacia afuera |
+
+Y en la raíz, `kustomization.yaml`: el punto de entrada que aplica los siete
+archivos, los mete en el namespace `salud` y **genera** el ConfigMap del realm
+de Keycloak desde `keycloak/realm-export.json` (el mismo que usa Compose).
 <!-- slide -->
 # 🚀 Demo: del código al clúster
 
@@ -112,22 +117,26 @@ eval $(minikube docker-env)     # ⚠️ el paso que más se olvida
 docker build -t eureka-server:latest ./eureka-server
 ```
 
-**2. Cargar el realm de Keycloak**
+**2. Desplegar y observar**
+`-k` usa el `kustomization.yaml`: crea el namespace, genera el ConfigMap del realm y aplica los 25 objetos en orden.
 ```bash
-kubectl create configmap keycloak-realm-config \
-  --from-file=realm-export.json=keycloak/realm-export.json
-```
-
-**3. Desplegar y observar**
-```bash
-kubectl apply -f k8s/
+kubectl apply -k .
+kubectl config set-context --current --namespace=salud
 kubectl get pods -w
 ```
+Los Pods pasan por `Init:0/1` (el `initContainer` espera a su base de datos) antes de arrancar. Es el `depends_on` de Compose, en versión Kubernetes.
 
-**4. Abrir los puertos hacia tu máquina**
+**3. Abrir los puertos hacia tu máquina**
 ```bash
 kubectl port-forward svc/keycloak-salud 8080:8080
 kubectl port-forward svc/gateway-service 8090:8090
+```
+
+**4. O todo lo anterior, de un tirón**
+```bash
+./scripts/k8s-deploy.sh        # construye las imágenes y despliega
+./scripts/k8s-port-forward.sh  # abre los tres puertos
+./scripts/k8s-test.sh          # prueba el flujo completo
 ```
 <!-- slide -->
 # 💪 Self-Healing y Escalado en vivo

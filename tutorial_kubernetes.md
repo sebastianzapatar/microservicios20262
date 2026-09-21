@@ -171,12 +171,25 @@ Los archivos están numerados en el orden en que deben aplicarse:
 
 | Archivo | Qué crea | Por qué va en ese orden |
 | :--- | :--- | :--- |
+| `00-namespace.yaml` | El namespace `salud` | Es la "carpeta" del clúster donde vive todo lo demás |
 | `01-config.yaml` | `ConfigMap` + `Secret` | Los demás Pods leen sus variables de aquí |
 | `02-databases.yaml` | PostgreSQL, MongoDB, MySQL (+ sus `PVC` y `Service`) | Los microservicios necesitan sus bases listas |
 | `03-keycloak.yaml` | Keycloak (Identity Provider) | Emite los tokens JWT |
 | `04-eureka.yaml` | Eureka Server | Todos se registran aquí al arrancar |
 | `05-microservices.yaml` | Pacientes, Historial Médico y FastAPI | Se registran en Eureka |
 | `06-gateway.yaml` | API Gateway | Descubre a los demás vía Eureka |
+
+Y en la **raíz del proyecto** hay dos piezas más que completan el despliegue:
+
+| Archivo / carpeta | Para qué sirve |
+| :--- | :--- |
+| `kustomization.yaml` | El punto de entrada. Le dice a `kubectl apply -k .` qué archivos aplicar, en qué namespace ponerlos y cómo generar el ConfigMap del realm de Keycloak |
+| `scripts/` | Los cuatro scripts que automatizan todo el proceso (`k8s-deploy.sh`, `k8s-port-forward.sh`, `k8s-test.sh`, `k8s-clean.sh`) |
+
+> [!TIP]
+> Si quieres el resultado sin escribir un solo comando a mano, salta directo a
+> `./scripts/k8s-deploy.sh`. Las secciones §10 a §12 explican exactamente lo que
+> hace ese script, paso por paso. Vale la pena leerlas una vez.
 
 **Objetos de Kubernetes que vas a ver, y para qué sirve cada uno:**
 
@@ -186,6 +199,8 @@ Los archivos están numerados en el orden en que deben aplicarse:
 - **ConfigMap** — configuración no sensible (nombres de bases, URLs).
 - **Secret** — credenciales (usuarios, contraseñas).
 - **NodePort** — abre un puerto del nodo hacia afuera para poder entrar desde tu máquina.
+- **Namespace** — separa este sistema del resto del clúster (por ejemplo, del Pod de nginx de la Parte A). Borrarlo borra todo lo que contiene.
+- **initContainer** — un contenedor que corre y termina ANTES del contenedor principal. Aquí se usa para esperar a que la base de datos acepte conexiones.
 
 ---
 
@@ -226,45 +241,85 @@ docker images | grep -E "eureka|gateway|pacientes|historial"
 
 *La primera construcción tarda varios minutos porque Gradle descarga todas las dependencias de Spring Boot.*
 
+> [!TIP]
+> `./scripts/k8s-build.sh` hace exactamente los pasos 2, 3 y 4 de arriba. Como
+> ejecuta el `eval` dentro del propio script, no puede olvidársete. También
+> acepta nombres sueltos para reconstruir solo lo que cambiaste:
+> `./scripts/k8s-build.sh gateway-service`
+
 ---
 
-## 1️⃣1️⃣ Paso 2: Crear el ConfigMap del realm de Keycloak
+## 1️⃣1️⃣ Paso 2: Entender `kustomization.yaml` (y por qué no se usa `-f`)
 
-El archivo `03-keycloak.yaml` monta la configuración del realm (usuarios, roles y client) desde un ConfigMap que **no se puede escribir cómodamente dentro de un YAML**, porque es un JSON grande. Se crea directamente desde el archivo:
+Antes había que crear a mano el ConfigMap con el realm de Keycloak, y era el
+paso que más se olvidaba. Ya no hace falta: lo genera **kustomize**, una
+herramienta que viene **dentro de `kubectl`** (no hay nada que instalar).
 
-```bash
-kubectl create configmap keycloak-realm-config \
-  --from-file=realm-export.json=keycloak/realm-export.json
+Abre el `kustomization.yaml` de la raíz del proyecto. Hace tres cosas:
+
+```yaml
+namespace: salud          # 1. mete los 25 objetos en el namespace 'salud'
+
+resources:                # 2. la lista de manifiestos a aplicar, en orden
+  - k8s/00-namespace.yaml
+  - k8s/01-config.yaml
+  # ...
+
+configMapGenerator:       # 3. genera el ConfigMap del realm desde el JSON real
+  - name: keycloak-realm-config
+    files:
+      - realm-export.json=keycloak/realm-export.json
 ```
 
-Verifica que se creó:
+El punto 3 es el importante: el realm se genera desde
+`keycloak/realm-export.json`, **el mismo archivo que monta Docker Compose**.
+Una sola fuente de verdad para los dos modos de despliegue.
+
+Puedes ver el resultado sin tocar el clúster, que es una forma excelente de
+estudiar los manifiestos ya "resueltos":
+
 ```bash
-kubectl get configmap keycloak-realm-config
+kubectl kustomize .            # imprime los 25 objetos finales, con el namespace puesto
+kubectl kustomize . | grep -A2 "kind: ConfigMap"
 ```
 
 > [!WARNING]
-> Si te saltas este paso, el Pod de Keycloak se quedará para siempre en
-> `ContainerCreating` con el error
-> `configmap "keycloak-realm-config" not found` (visible con `kubectl describe pod`).
+> Por este archivo, **`kubectl apply -f k8s/` ya no funciona**: intentaría
+> aplicar el `kustomization.yaml` como si fuera un objeto del clúster.
+> El comando correcto es `kubectl apply -k .` desde la raíz del proyecto.
 
 ---
 
 ## 1️⃣2️⃣ Paso 3: Desplegar el sistema
 
-Aplica los manifiestos en orden. `kubectl apply -f` acepta una carpeta completa y respeta el orden alfabético de los archivos, que es justo por lo que están numerados:
+Un solo comando, desde la **raíz del proyecto**:
 
 ```bash
-kubectl apply -f k8s/
+kubectl apply -k .
 ```
 
 Salida esperada:
 ```text
+namespace/salud created
+configmap/keycloak-realm-config-57k99mtb4f created
 configmap/salud-config created
 secret/salud-secrets created
+service/postgres-salud created
 persistentvolumeclaim/postgres-pvc created
 deployment.apps/postgres-salud created
-service/postgres-salud created
-... (22 objetos en total)
+... (25 objetos en total)
+```
+
+*(El sufijo `-57k99mtb4f` es el hash del contenido del realm. kustomize lo añade
+y reescribe solo la referencia dentro del Deployment de Keycloak. Gracias a eso,
+si editas el realm y vuelves a aplicar, Keycloak se reinicia con la versión
+nueva en vez de quedarse con la vieja.)*
+
+Como todo vive en el namespace `salud`, conviene decirle a `kubectl` que
+trabaje ahí por defecto. Si no, habría que añadir `-n salud` a cada comando:
+
+```bash
+kubectl config set-context --current --namespace=salud
 ```
 
 Ahora observa cómo arranca todo, en vivo:
@@ -273,20 +328,32 @@ kubectl get pods -w
 ```
 *(`-w` = watch. Presiona `Ctrl+C` para salir.)*
 
-**Esto tarda entre 2 y 5 minutos.** Es normal ver `CrashLoopBackOff` o `0/1` durante el arranque: los microservicios Java intentan conectarse a bases de datos que todavía se están inicializando, se reinician y lo vuelven a intentar. Kubernetes hace exactamente eso: **reintentar hasta que el sistema converja al estado deseado**.
+**Esto tarda entre 3 y 6 minutos la primera vez.** Verás los Pods pasar por
+varios estados, y todos son normales:
+
+| Estado que verás | Qué está pasando |
+| :--- | :--- |
+| `Init:0/1` | El `initContainer` está esperando a que su base de datos acepte conexiones |
+| `PodInitializing` | La base ya respondió; arrancando el contenedor principal |
+| `Running 0/1` | La JVM está arrancando; el `startupProbe` todavía no pasa |
+| `Running 1/1` | Listo y recibiendo tráfico |
+
+Ese `Init:0/1` es el equivalente en Kubernetes del `depends_on: service_healthy`
+de Docker Compose, y es la razón por la que ya **no** hay que aguantar un
+`CrashLoopBackOff` mientras las bases arrancan.
 
 Estado final esperado (todos `Running` y `1/1`):
 ```text
 NAME                                         READY   STATUS    RESTARTS   AGE
-eureka-server-xxxxxxxxx-xxxxx                1/1     Running   0          3m
-gateway-service-xxxxxxxxx-xxxxx              1/1     Running   1          3m
-historial-medico-service-xxxxxxxxx-xxxxx     1/1     Running   1          3m
-keycloak-salud-xxxxxxxxx-xxxxx               1/1     Running   0          3m
-mongo-salud-xxxxxxxxx-xxxxx                  1/1     Running   0          3m
-mysql-salud-xxxxxxxxx-xxxxx                  1/1     Running   0          3m
-pacientes-fastapi-service-xxxxxxxxx-xxxxx    1/1     Running   0          3m
-pacientes-service-xxxxxxxxx-xxxxx            1/1     Running   1          3m
-postgres-salud-xxxxxxxxx-xxxxx               1/1     Running   0          3m
+eureka-server-xxxxxxxxx-xxxxx                1/1     Running   0          4m
+gateway-service-xxxxxxxxx-xxxxx              1/1     Running   0          4m
+historial-medico-service-xxxxxxxxx-xxxxx     1/1     Running   0          4m
+keycloak-salud-xxxxxxxxx-xxxxx               1/1     Running   0          4m
+mongo-salud-xxxxxxxxx-xxxxx                  1/1     Running   0          4m
+mysql-salud-xxxxxxxxx-xxxxx                  1/1     Running   0          4m
+pacientes-fastapi-service-xxxxxxxxx-xxxxx    1/1     Running   0          4m
+pacientes-service-xxxxxxxxx-xxxxx            1/1     Running   0          4m
+postgres-salud-xxxxxxxxx-xxxxx               1/1     Running   0          4m
 ```
 
 Revisa también los Services que se crearon:
@@ -340,6 +407,11 @@ Opcionalmente, para ver el panel de Eureka en el navegador:
 # Terminal 3
 kubectl port-forward svc/eureka-server 8761:8761
 ```
+
+> [!TIP]
+> `./scripts/k8s-port-forward.sh` abre las tres en una sola terminal y las
+> cierra todas juntas con `Ctrl+C`. Además avisa si alguno de los puertos ya
+> está ocupado (el caso típico: `docker compose` sigue levantado).
 Y abre [http://localhost:8761](http://localhost:8761): deberías ver registrados `GATEWAY-SERVICE`, `PACIENTES-SERVICE`, `HISTORIAL-MEDICO-SERVICE` y `PACIENTES-FASTAPI-SERVICE`.
 
 > [!IMPORTANT]
@@ -356,6 +428,12 @@ Y abre [http://localhost:8761](http://localhost:8761): deberías ver registrados
 ---
 
 ## 1️⃣5️⃣ Paso 6: Probar el sistema completo
+
+> [!TIP]
+> `./scripts/k8s-test.sh` ejecuta automáticamente todo lo que viene a
+> continuación y se detiene con un mensaje claro en el primer fallo. Úsalo para
+> comprobar de un vistazo que el despliegue quedó bien; y luego repite los
+> comandos a mano para entender qué hace cada uno.
 
 ### A. Flujo con Keycloak (servicios Java)
 
@@ -446,21 +524,33 @@ curl "http://localhost:8090/api/consultas/historial" \
 
 ## 1️⃣6️⃣ Paso 7: Limpiar
 
+Como todo vive dentro del namespace `salud`, borrarlo se lleva por delante los
+25 objetos de una vez: Pods, Services, Deployments, ConfigMaps, Secrets **y los
+PVC con los datos de las tres bases**.
+
 ```bash
-# Borrar solo la aplicación (el clúster sigue vivo)
-kubectl delete -f k8s/
-kubectl delete configmap keycloak-realm-config
+# Borrar toda la aplicación (el clúster de Minikube sigue vivo)
+kubectl delete namespace salud
 
-# Los PVC no se borran con lo anterior: hay que hacerlo explícitamente
-# (Kubernetes los conserva a propósito para no perder datos por accidente)
-kubectl delete pvc --all
+# Volver al namespace por defecto
+kubectl config set-context --current --namespace=default
 
-# Apagar el clúster
+# Apagar el clúster (conserva imágenes y configuración)
 minikube stop
 
 # O eliminarlo por completo
 minikube delete
 ```
+
+> [!TIP]
+> `./scripts/k8s-clean.sh` hace las dos primeras órdenes, y
+> `./scripts/k8s-clean.sh --todo` añade el `minikube delete`.
+
+> [!NOTE]
+> Este es uno de los grandes argumentos del namespace: sin él habría que borrar
+> los objetos uno por uno y acordarse de que **los PVC no se borran junto con
+> los Deployments** (Kubernetes los conserva a propósito para no perder datos
+> por accidente).
 
 ---
 
@@ -468,20 +558,25 @@ minikube delete
 
 | Síntoma | Causa | Solución |
 | :--- | :--- | :--- |
-| `ImagePullBackOff` | Olvidaste `eval $(minikube docker-env)` antes de construir | Ejecútalo y reconstruye las 5 imágenes |
-| Keycloak en `ContainerCreating` | Falta el ConfigMap del realm | Ver §11 |
+| `ErrImageNeverPull` | Olvidaste `eval $(minikube docker-env)` antes de construir: la imagen está en tu Docker, no en el de Minikube | `./scripts/k8s-build.sh` (lo hace por ti) |
+| `kubectl get pods` no muestra nada | Estás mirando el namespace equivocado | `kubectl config set-context --current --namespace=salud` |
+| `error: unable to recognize "k8s/kustomization.yaml"` | Usaste `apply -f k8s/` | El comando es `kubectl apply -k .` desde la raíz |
 | Todo responde `401 Unauthorized` | El `iss` del token no coincide con `ISSUER_URI` | Pide el token por `localhost:8080` con `port-forward` (§14) |
 | Gateway responde `503 Service Unavailable` | El servicio aún no se registró en Eureka | Espera ~40 s y revisa el panel de Eureka |
 | `503` justo después de reiniciar o escalar un servicio | El Gateway tiene en caché la instancia vieja (Eureka refresca cada ~30 s) | Espera y reintenta; es el comportamiento normal de Eureka, no un error |
-| `CrashLoopBackOff` en un servicio Java | La base de datos aún no estaba lista | Suele resolverse solo; si no, `kubectl logs <pod>` |
+| Un Pod lleva mucho en `Init:0/1` | Su `initContainer` sigue esperando a la base de datos | `kubectl logs <pod> -c esperar-postgres` (o `esperar-mongo`, `esperar-mysql`, `esperar-eureka`) |
+| `CrashLoopBackOff` en un servicio Java | La aplicación falla al arrancar por configuración | `kubectl logs <pod> --previous` |
+| `Multi-Attach error` / PVC en `Pending` al reaplicar | Un Deployment con PVC `ReadWriteOnce` sin `strategy: Recreate` | Ya está corregido en `02-databases.yaml`; si lo ves, `kubectl delete pod <el-viejo>` |
 | `Pending` en los Pods de bases de datos | El PVC no consigue disco | `kubectl get pvc` y `kubectl describe pvc <nombre>` |
 | Pods reiniciándose sin parar (`OOMKilled`) | Minikube sin RAM suficiente | `minikube delete && minikube start --cpus=4 --memory=8192` |
 
 **Comandos de rescate:**
 ```bash
-kubectl get pods                        # estado general
+kubectl get pods                        # estado general (namespace 'salud')
+kubectl get all -n salud                # todo: pods, services, deployments
 kubectl describe pod <nombre-del-pod>   # eventos: imágenes, volúmenes, probes
 kubectl logs <nombre-del-pod>           # salida de la aplicación
+kubectl logs <nombre-del-pod> -c esperar-postgres   # log del initContainer
 kubectl logs <nombre-del-pod> --previous  # logs del contenedor que YA murió
 kubectl get events --sort-by=.metadata.creationTimestamp | tail -20
 kubectl exec -it <nombre-del-pod> -- sh   # entrar al contenedor
@@ -500,11 +595,13 @@ Ya desplegaste este proyecto de las dos formas. Esta es la traducción mental:
 | `ports: "8090:8090"` | `NodePort` o `port-forward` | K8s no publica puertos por defecto |
 | `environment:` | `ConfigMap` + `Secret` | La configuración se separa de la imagen |
 | `volumes:` | `PersistentVolumeClaim` | K8s pide el disco de forma declarativa |
-| `depends_on` + `healthcheck` | `readinessProbe` / `livenessProbe` | K8s reintenta indefinidamente |
+| `depends_on: service_healthy` | `initContainers` | Un contenedor que espera y termina antes del principal |
+| `healthcheck:` | `startupProbe` / `readinessProbe` / `livenessProbe` | K8s separa "arrancando", "listo" y "vivo" |
 | `restart: unless-stopped` | Nativo del Deployment | El self-healing viene de fábrica |
-| `docker compose up -d` | `kubectl apply -f k8s/` | Ambos son declarativos |
+| `docker compose up -d` | `kubectl apply -k .` | Ambos son declarativos |
 | `docker compose logs -f x` | `kubectl logs -f <pod>` | |
 | Escalar: manual | `kubectl scale --replicas=3` | Y con HPA, automático |
+| `docker compose down -v` | `kubectl delete namespace salud` | El namespace arrastra también los volúmenes |
 
 ---
 
