@@ -12,8 +12,14 @@
 #
 set -euo pipefail
 
-KEYCLOAK=http://localhost:8080
-GATEWAY=http://localhost:8090
+# Se pueden sobrescribir si tuviste que redirigir a otros puertos, por ejemplo
+# porque Docker Compose sigue ocupando el 8090:
+#   GATEWAY=http://localhost:18090 ./scripts/k8s-test.sh
+#
+# OJO: KEYCLOAK debe seguir siendo localhost:8080. Los microservicios comparan
+# el claim "iss" del token contra esa URL exacta; cualquier otra da 401.
+KEYCLOAK=${KEYCLOAK:-http://localhost:8080}
+GATEWAY=${GATEWAY:-http://localhost:8090}
 SUFIJO=$(date +%s)   # hace únicos el documento y el email en cada ejecución
 
 json() { python3 -c "import sys,json; d=json.load(sys.stdin); print(d$1)" 2>/dev/null || true; }

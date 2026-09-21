@@ -270,6 +270,7 @@ minikube stop                        # apaga el clúster (conserva las imágenes
 | `ErrImageNeverPull` / `ErrImageNeverPullPolicy` | Construiste las imágenes en tu Docker, no en el de Minikube | `eval $(minikube docker-env)` y reconstruye, o usa `./scripts/k8s-build.sh` |
 | `kubectl get pods` no muestra nada | Estás en el namespace `default` | `kubectl config set-context --current --namespace=salud` |
 | `provided port is already allocated` al aplicar | Otro Service ya usa el NodePort 30080/30090/30876 | `kubectl get svc -A` para ver quién, y bórralo o cámbiale el puerto |
+| `port-forward` avisa de que 8090 o 8761 están ocupados | El stack de Docker Compose de este mismo proyecto sigue levantado | `docker compose down`, o redirige a otros puertos locales: `kubectl port-forward svc/gateway-service 18090:8090` y luego `GATEWAY=http://localhost:18090 ./scripts/k8s-test.sh`. **Keycloak sí debe quedarse en 8080**, o el claim `iss` no coincide y todo da 401 |
 | `error: unable to recognize "k8s/kustomization.yaml"` | Usaste `apply -f k8s/` | El comando es `kubectl apply -k .` desde la raíz |
 | Todo responde `401 Unauthorized` | El `iss` del token no coincide con el `ISSUER_URI` | Pide el token por `localhost:8080` usando `port-forward` |
 | `503` en `/api/...` justo tras reiniciar o escalar | El Gateway tiene en caché la instancia vieja (Eureka refresca cada ~30 s) | Espera y reintenta; es el comportamiento normal de Eureka |
