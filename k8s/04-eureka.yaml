@@ -1,13 +1,20 @@
 # ==========================================
 # EUREKA SERVER (Service Discovery)
 #
-# imagePullPolicy: Never -> usa la imagen del daemon Docker de Minikube.
-# Recuerda construirla primero con:  eval $(minikube docker-env)
+# imagePullPolicy: Never -> "no bajes nada de internet, usa la imagen que ya
+# está en el nodo". Por eso hay que construir las imágenes DENTRO del Docker
+# de Minikube:  eval $(minikube docker-env)  antes de  docker build.
+# Si falta la imagen, el Pod falla con un error explícito
+# ("Container image ... is not present with pull policy of Never"),
+# que es más claro que un ImagePullBackOff contra Docker Hub.
 # ==========================================
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: eureka-server
+  labels:
+    app: eureka-server
+    tier: discovery
 spec:
   replicas: 1
   selector:
@@ -17,6 +24,7 @@ spec:
     metadata:
       labels:
         app: eureka-server
+        tier: discovery
     spec:
       containers:
       - name: eureka
@@ -24,19 +32,26 @@ spec:
         imagePullPolicy: Never
         ports:
         - containerPort: 8761
+          name: http
+        # Ver la nota sobre startupProbe en 03-keycloak.yaml.
+        # Una JVM con Spring Boot en Minikube puede tardar 60-120 s en arrancar.
+        startupProbe:
+          httpGet:
+            path: /actuator/health/readiness
+            port: 8761
+          periodSeconds: 5
+          failureThreshold: 60
         readinessProbe:
           httpGet:
             path: /actuator/health/readiness
             port: 8761
-          initialDelaySeconds: 20
           periodSeconds: 10
-          failureThreshold: 15
         livenessProbe:
           httpGet:
             path: /actuator/health/liveness
             port: 8761
-          initialDelaySeconds: 60
           periodSeconds: 20
+          failureThreshold: 3
         resources:
           requests:
             memory: "384Mi"
@@ -53,6 +68,7 @@ spec:
   selector:
     app: eureka-server
   ports:
-    - port: 8761
+    - name: http
+      port: 8761
       targetPort: 8761
       nodePort: 30876

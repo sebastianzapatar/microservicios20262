@@ -1,0 +1,20 @@
+# ==========================================
+# NAMESPACE
+#
+# Un Namespace es una "carpeta" lógica dentro del clúster: aísla los objetos
+# de este proyecto del resto (por ejemplo, del Pod de nginx de la Parte A del
+# tutorial). Ventajas prácticas:
+#
+#   - `kubectl get pods` dentro del namespace solo muestra lo de este sistema.
+#   - `kubectl delete namespace salud` borra TODO el sistema de un golpe
+#     (Pods, Services, PVCs, ConfigMaps y Secrets incluidos).
+#
+# El kustomization.yaml de esta carpeta inyecta `namespace: salud` en todos los
+# demás objetos, por eso ninguno de los otros archivos lo repite.
+# ==========================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: salud
+  labels:
+    name: salud

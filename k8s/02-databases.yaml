@@ -1,6 +1,22 @@
 # ==========================================
-# POSTGRESQL
+# BASES DE DATOS
+#
+# Las tres siguen el mismo patrón:
+#   PVC        -> pide disco persistente (los datos sobreviven al reinicio del Pod)
+#   Deployment -> corre el motor de base de datos
+#   Service    -> le da un nombre DNS fijo dentro del clúster
+#
+# ⚠️ strategy: Recreate
+# Un PVC con accessMode ReadWriteOnce solo puede estar montado por UN Pod a la
+# vez. Con la estrategia por defecto (RollingUpdate), Kubernetes intentaría
+# crear el Pod nuevo ANTES de borrar el viejo, y el nuevo se quedaría en
+# Pending para siempre ("Multi-Attach error" / "volume is already used").
+# Recreate apaga el Pod viejo primero. Para bases de datos es lo correcto.
 # ==========================================
+
+# ------------------------------------------
+# POSTGRESQL (Pacientes)
+# ------------------------------------------
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -16,8 +32,13 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: postgres-salud
+  labels:
+    app: postgres-salud
+    tier: database
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: postgres-salud
@@ -25,6 +46,7 @@ spec:
     metadata:
       labels:
         app: postgres-salud
+        tier: database
     spec:
       containers:
       - name: postgres
@@ -51,11 +73,25 @@ spec:
           value: /var/lib/postgresql/data/pgdata
         ports:
         - containerPort: 5432
+          name: postgres
+        # $POSTGRES_USER/$POSTGRES_DB vienen del Secret y el ConfigMap: la sonda
+        # no repite las credenciales, así que sigue funcionando si se cambian.
         readinessProbe:
           exec:
-            command: ["pg_isready", "-U", "postgres"]
-          initialDelaySeconds: 10
-          periodSeconds: 10
+            command: ["sh", "-c", 'pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"']
+          periodSeconds: 5
+          failureThreshold: 30
+        livenessProbe:
+          exec:
+            command: ["sh", "-c", 'pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"']
+          initialDelaySeconds: 60
+          periodSeconds: 20
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
         volumeMounts:
         - name: postgres-data
           mountPath: /var/lib/postgresql/data
@@ -75,9 +111,9 @@ spec:
     - port: 5432
       targetPort: 5432
 
-# ==========================================
-# MONGODB
-# ==========================================
+# ------------------------------------------
+# MONGODB (Historial Médico)
+# ------------------------------------------
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -94,8 +130,13 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: mongo-salud
+  labels:
+    app: mongo-salud
+    tier: database
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: mongo-salud
@@ -103,6 +144,7 @@ spec:
     metadata:
       labels:
         app: mongo-salud
+        tier: database
     spec:
       containers:
       - name: mongodb
@@ -125,11 +167,23 @@ spec:
               key: MONGO_DB
         ports:
         - containerPort: 27017
+          name: mongodb
         readinessProbe:
           exec:
             command: ["mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
-          initialDelaySeconds: 15
-          periodSeconds: 10
+          periodSeconds: 5
+          failureThreshold: 30
+        livenessProbe:
+          exec:
+            command: ["mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+          initialDelaySeconds: 90
+          periodSeconds: 20
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "768Mi"
         volumeMounts:
         - name: mongo-data
           mountPath: /data/db
@@ -149,9 +203,9 @@ spec:
     - port: 27017
       targetPort: 27017
 
-# ==========================================
-# MYSQL
-# ==========================================
+# ------------------------------------------
+# MYSQL (Usuarios de FastAPI)
+# ------------------------------------------
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -168,8 +222,13 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: mysql-salud
+  labels:
+    app: mysql-salud
+    tier: database
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: mysql-salud
@@ -177,6 +236,7 @@ spec:
     metadata:
       labels:
         app: mysql-salud
+        tier: database
     spec:
       containers:
       - name: mysql
@@ -194,12 +254,25 @@ spec:
               key: MYSQL_DATABASE
         ports:
         - containerPort: 3306
+          name: mysql
+        # La PRIMERA vez, MySQL inicializa el datadir y tarda ~30-60 s. Con
+        # failureThreshold 60 y periodSeconds 5 se le dan hasta 5 minutos.
         readinessProbe:
           exec:
-            command: ["sh", "-c", "mysqladmin ping -h 127.0.0.1 -uroot -p$MYSQL_ROOT_PASSWORD"]
-          initialDelaySeconds: 30
-          periodSeconds: 10
-          failureThreshold: 10
+            command: ["sh", "-c", 'mysqladmin ping -h 127.0.0.1 -uroot -p"$MYSQL_ROOT_PASSWORD" --silent']
+          periodSeconds: 5
+          failureThreshold: 60
+        livenessProbe:
+          exec:
+            command: ["sh", "-c", 'mysqladmin ping -h 127.0.0.1 -uroot -p"$MYSQL_ROOT_PASSWORD" --silent']
+          initialDelaySeconds: 180
+          periodSeconds: 20
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "200m"
+          limits:
+            memory: "1Gi"
         volumeMounts:
         - name: mysql-data
           mountPath: /var/lib/mysql

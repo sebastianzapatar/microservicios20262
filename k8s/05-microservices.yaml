@@ -1,10 +1,35 @@
 # ==========================================
-# PACIENTES SERVICE (Java + PostgreSQL)
+# MICROSERVICIOS DE NEGOCIO
+#
+# Los tres comparten dos patrones que conviene entender:
+#
+# 1) initContainers
+#    Kubernetes arranca los Pods en paralelo, sin respetar dependencias. Un
+#    servicio Spring Boot con JPA que no encuentra su base de datos MUERE al
+#    arrancar, y el Pod entra en CrashLoopBackOff hasta que la base esté lista.
+#    Un initContainer corre ANTES del contenedor principal y hasta que no
+#    termina con éxito, el contenedor principal no arranca. El Pod se queda en
+#    estado `Init:0/1`, que es mucho más legible que un bucle de reinicios.
+#    Es el equivalente de `depends_on: condition: service_healthy` de Compose.
+#
+# 2) startupProbe / readinessProbe / livenessProbe
+#    startup  -> "¿ya terminó de arrancar?" Mientras no pase, las otras dos no
+#                se ejecutan. Aquí da hasta 5 minutos (60 x 5 s).
+#    readiness-> "¿puede recibir tráfico?" Si falla, el Service deja de
+#                enviarle peticiones, pero NO lo reinicia.
+#    liveness -> "¿está vivo o colgado?" Si falla, Kubernetes REINICIA el Pod.
 # ==========================================
+
+# ------------------------------------------
+# PACIENTES SERVICE (Java + PostgreSQL)
+# ------------------------------------------
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: pacientes-service
+  labels:
+    app: pacientes-service
+    tier: backend
 spec:
   replicas: 1
   selector:
@@ -14,14 +39,43 @@ spec:
     metadata:
       labels:
         app: pacientes-service
+        tier: backend
     spec:
+      initContainers:
+      - name: esperar-postgres
+        image: postgres:16-alpine
+        command:
+        - sh
+        - -c
+        - |
+          until pg_isready -h postgres-salud -p 5432 -U "$POSTGRES_USER"; do
+            echo "PostgreSQL todavía no responde, reintentando en 3 s..."
+            sleep 3
+          done
+          echo "PostgreSQL listo."
+        env:
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: salud-secrets
+              key: POSTGRES_USER
+        resources:
+          requests:
+            memory: "32Mi"
+            cpu: "10m"
       containers:
       - name: pacientes-service
         image: pacientes-service:latest
         imagePullPolicy: Never
         env:
+        - name: POSTGRES_DB
+          valueFrom:
+            configMapKeyRef:
+              name: salud-config
+              key: POSTGRES_DB
+        # $(VAR) referencia variables declaradas ANTES en esta misma lista.
         - name: SPRING_DATASOURCE_URL
-          value: jdbc:postgresql://postgres-salud:5432/pacientes_db
+          value: "jdbc:postgresql://postgres-salud:5432/$(POSTGRES_DB)"
         - name: SPRING_DATASOURCE_USERNAME
           valueFrom:
             secretKeyRef:
@@ -49,19 +103,24 @@ spec:
               key: SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI
         ports:
         - containerPort: 8081
+          name: http
+        startupProbe:
+          httpGet:
+            path: /actuator/health/readiness
+            port: 8081
+          periodSeconds: 5
+          failureThreshold: 60
         readinessProbe:
           httpGet:
             path: /actuator/health/readiness
             port: 8081
-          initialDelaySeconds: 25
           periodSeconds: 10
-          failureThreshold: 15
         livenessProbe:
           httpGet:
             path: /actuator/health/liveness
             port: 8081
-          initialDelaySeconds: 70
           periodSeconds: 20
+          failureThreshold: 3
         resources:
           requests:
             memory: "384Mi"
@@ -77,17 +136,21 @@ spec:
   selector:
     app: pacientes-service
   ports:
-    - port: 8081
+    - name: http
+      port: 8081
       targetPort: 8081
 
-# ==========================================
+# ------------------------------------------
 # HISTORIAL MEDICO SERVICE (Java + MongoDB)
-# ==========================================
+# ------------------------------------------
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: historial-medico-service
+  labels:
+    app: historial-medico-service
+    tier: backend
 spec:
   replicas: 1
   selector:
@@ -97,7 +160,24 @@ spec:
     metadata:
       labels:
         app: historial-medico-service
+        tier: backend
     spec:
+      initContainers:
+      - name: esperar-mongo
+        image: mongo:7
+        command:
+        - sh
+        - -c
+        - |
+          until mongosh --host mongo-salud --port 27017 --quiet --eval "db.adminCommand('ping')"; do
+            echo "MongoDB todavía no responde, reintentando en 3 s..."
+            sleep 3
+          done
+          echo "MongoDB listo."
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "10m"
       containers:
       - name: historial-medico-service
         image: historial-medico-service:latest
@@ -138,19 +218,24 @@ spec:
               key: SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI
         ports:
         - containerPort: 8082
+          name: http
+        startupProbe:
+          httpGet:
+            path: /actuator/health/readiness
+            port: 8082
+          periodSeconds: 5
+          failureThreshold: 60
         readinessProbe:
           httpGet:
             path: /actuator/health/readiness
             port: 8082
-          initialDelaySeconds: 25
           periodSeconds: 10
-          failureThreshold: 15
         livenessProbe:
           httpGet:
             path: /actuator/health/liveness
             port: 8082
-          initialDelaySeconds: 70
           periodSeconds: 20
+          failureThreshold: 3
         resources:
           requests:
             memory: "384Mi"
@@ -166,17 +251,21 @@ spec:
   selector:
     app: historial-medico-service
   ports:
-    - port: 8082
+    - name: http
+      port: 8082
       targetPort: 8082
 
-# ==========================================
-# PACIENTES FASTAPI SERVICE (Python)
-# ==========================================
+# ------------------------------------------
+# PACIENTES FASTAPI SERVICE (Python + MySQL + MongoDB)
+# ------------------------------------------
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: pacientes-fastapi-service
+  labels:
+    app: pacientes-fastapi-service
+    tier: backend
 spec:
   replicas: 1
   selector:
@@ -186,7 +275,50 @@ spec:
     metadata:
       labels:
         app: pacientes-fastapi-service
+        tier: backend
     spec:
+      initContainers:
+      - name: esperar-mysql
+        image: mysql:8.0
+        command:
+        - sh
+        - -c
+        - |
+          until mysqladmin ping -h mysql-salud -P 3306 -uroot -p"$MYSQL_ROOT_PASSWORD" --silent; do
+            echo "MySQL todavía no responde, reintentando en 3 s..."
+            sleep 3
+          done
+          echo "MySQL listo."
+        env:
+        - name: MYSQL_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: salud-secrets
+              key: MYSQL_ROOT_PASSWORD
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "10m"
+      # Este servicio SÍ necesita esperar a Eureka, a diferencia de los de Java.
+      # Los clientes Eureka de Spring reintentan el registro indefinidamente,
+      # pero py-eureka-client lanza una excepción si el servidor no responde al
+      # primer intento y NO vuelve a intentarlo: el servicio quedaría corriendo
+      # pero invisible para el Gateway (503 permanente en /api/usuarios).
+      - name: esperar-eureka
+        image: busybox:1.36
+        command:
+        - sh
+        - -c
+        - |
+          until wget -q -O /dev/null http://eureka-server:8761/actuator/health; do
+            echo "Eureka todavía no responde, reintentando en 3 s..."
+            sleep 3
+          done
+          echo "Eureka listo."
+        resources:
+          requests:
+            memory: "16Mi"
+            cpu: "10m"
       containers:
       - name: pacientes-fastapi-service
         image: pacientes-fastapi-service:latest
@@ -224,8 +356,14 @@ spec:
               key: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
         - name: MONGO_HOST
           value: mongo-salud
+        - name: MONGO_PORT
+          value: "27017"
         - name: MYSQL_HOST
           value: mysql-salud
+        - name: MYSQL_PORT
+          value: "3306"
+        - name: PACIENTES_FASTAPI_PORT
+          value: "8083"
         # py-eureka-client se anuncia por defecto con el hostname del Pod, que
         # NO es resoluble por DNS en Kubernetes. Se inyecta la IP del Pod con la
         # Downward API para que el Gateway pueda alcanzar este servicio.
@@ -235,19 +373,24 @@ spec:
               fieldPath: status.podIP
         ports:
         - containerPort: 8083
+          name: http
+        startupProbe:
+          httpGet:
+            path: /health
+            port: 8083
+          periodSeconds: 5
+          failureThreshold: 60
         readinessProbe:
           httpGet:
             path: /health
             port: 8083
-          initialDelaySeconds: 15
           periodSeconds: 10
-          failureThreshold: 15
         livenessProbe:
           httpGet:
             path: /health
             port: 8083
-          initialDelaySeconds: 45
           periodSeconds: 20
+          failureThreshold: 3
         resources:
           requests:
             memory: "192Mi"
@@ -263,5 +406,6 @@ spec:
   selector:
     app: pacientes-fastapi-service
   ports:
-    - port: 8083
+    - name: http
+      port: 8083
       targetPort: 8083

@@ -3,11 +3,18 @@
 #
 # Es el único servicio de aplicación expuesto hacia afuera (NodePort 30090).
 # Los demás microservicios solo son alcanzables dentro del clúster.
+#
+# No lleva initContainer: el cliente de Eureka reintenta solo. Si el Gateway
+# arranca antes que Eureka, simplemente responde 503 durante unos segundos
+# hasta que consigue descargar el registro de servicios.
 # ==========================================
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: gateway-service
+  labels:
+    app: gateway-service
+    tier: edge
 spec:
   replicas: 1
   selector:
@@ -17,6 +24,7 @@ spec:
     metadata:
       labels:
         app: gateway-service
+        tier: edge
     spec:
       containers:
       - name: gateway-service
@@ -40,19 +48,24 @@ spec:
               key: SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI
         ports:
         - containerPort: 8090
+          name: http
+        startupProbe:
+          httpGet:
+            path: /actuator/health/readiness
+            port: 8090
+          periodSeconds: 5
+          failureThreshold: 60
         readinessProbe:
           httpGet:
             path: /actuator/health/readiness
             port: 8090
-          initialDelaySeconds: 25
           periodSeconds: 10
-          failureThreshold: 15
         livenessProbe:
           httpGet:
             path: /actuator/health/liveness
             port: 8090
-          initialDelaySeconds: 70
           periodSeconds: 20
+          failureThreshold: 3
         resources:
           requests:
             memory: "384Mi"
@@ -69,6 +82,7 @@ spec:
   selector:
     app: gateway-service
   ports:
-    - port: 8090
+    - name: http
+      port: 8090
       targetPort: 8090
       nodePort: 30090

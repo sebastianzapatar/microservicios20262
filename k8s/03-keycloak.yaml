@@ -1,22 +1,29 @@
 # ==========================================
 # KEYCLOAK (Identity Provider)
 #
-# ⚠️ REQUISITO PREVIO: este Deployment monta el realm desde un ConfigMap que
-# NO se crea aquí (un ConfigMap no puede incrustar un JSON grande de forma
-# cómoda). Créalo ANTES de aplicar este archivo, desde la raíz del proyecto:
+# El realm (usuarios, roles y client) se monta desde el ConfigMap
+# `keycloak-realm-config`. Ese ConfigMap NO se escribe a mano: lo genera
+# kustomize a partir de keycloak/realm-export.json (ver kustomization.yaml en
+# la raíz del proyecto). Por eso el despliegue se hace con:
 #
-#   kubectl create configmap keycloak-realm-config \
-#     --from-file=realm-export.json=keycloak/realm-export.json
+#   kubectl apply -k .
 #
-# Si lo olvidas, el Pod se queda en ContainerCreating con el error
-# "configmap keycloak-realm-config not found".
+# kustomize le añade al nombre un sufijo con el hash del contenido
+# (keycloak-realm-config-abc123...) y actualiza la referencia de este
+# Deployment automáticamente. Efecto útil: si editas el realm y vuelves a
+# aplicar, el hash cambia y Keycloak se reinicia solo con el realm nuevo.
 # ==========================================
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: keycloak-salud
+  labels:
+    app: keycloak-salud
+    tier: security
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: keycloak-salud
@@ -24,6 +31,7 @@ spec:
     metadata:
       labels:
         app: keycloak-salud
+        tier: security
     spec:
       containers:
       - name: keycloak
@@ -65,14 +73,29 @@ spec:
           name: http
         - containerPort: 9000
           name: health
-        # Keycloak expone /health/ready en el puerto de gestión 9000 (KC 25+).
+        # Keycloak 25 expone /health/* en el puerto de GESTIÓN 9000, no en el 8080.
+        #
+        # startupProbe: mientras no pase, K8s NO ejecuta readiness ni liveness.
+        # Es la forma correcta de darle a un arranque lento todo el tiempo que
+        # necesite (aquí 5 min) sin tener que inflar initialDelaySeconds en la
+        # sonda de liveness, que es lo que mata Pods sanos en máquinas lentas.
+        startupProbe:
+          httpGet:
+            path: /health/started
+            port: 9000
+          periodSeconds: 5
+          failureThreshold: 60
         readinessProbe:
           httpGet:
             path: /health/ready
             port: 9000
-          initialDelaySeconds: 30
           periodSeconds: 10
-          failureThreshold: 20
+        livenessProbe:
+          httpGet:
+            path: /health/live
+            port: 9000
+          periodSeconds: 20
+          failureThreshold: 3
         resources:
           requests:
             memory: "512Mi"
@@ -82,6 +105,7 @@ spec:
         volumeMounts:
         - name: realm-config
           mountPath: /opt/keycloak/data/import/
+          readOnly: true
       volumes:
       - name: realm-config
         configMap:
@@ -96,6 +120,7 @@ spec:
   selector:
     app: keycloak-salud
   ports:
-    - port: 8080
+    - name: http
+      port: 8080
       targetPort: 8080
       nodePort: 30080

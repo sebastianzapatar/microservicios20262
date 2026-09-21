@@ -1,0 +1,57 @@
+# ==========================================
+# KUSTOMIZATION — punto de entrada del despliegue en Kubernetes
+#
+# Con este archivo, TODO el sistema se despliega con un solo comando desde la
+# raíz del proyecto:
+#
+#     kubectl apply -k .
+#
+# kustomize viene incluido dentro de kubectl (no hay que instalar nada) y aquí
+# hace tres cosas que a mano son fáciles de olvidar:
+#
+#   1. Mete los 25 objetos en el namespace `salud`.
+#   2. Genera el ConfigMap del realm de Keycloak desde keycloak/realm-export.json
+#      (antes había que crearlo a mano con `kubectl create configmap`; si se
+#      olvidaba, Keycloak se quedaba en ContainerCreating para siempre).
+#   3. Aplica los objetos en el orden correcto: Namespace y ConfigMap/Secret
+#      antes que los Deployments que los consumen.
+#
+# Nota: por este archivo, `kubectl apply -f k8s/` YA NO funciona (intentaría
+# aplicar el kustomization.yaml como si fuera un objeto del clúster).
+# El comando correcto es `kubectl apply -k .`
+# ==========================================
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: salud
+
+resources:
+  - k8s/00-namespace.yaml
+  - k8s/01-config.yaml
+  - k8s/02-databases.yaml
+  - k8s/03-keycloak.yaml
+  - k8s/04-eureka.yaml
+  - k8s/05-microservices.yaml
+  - k8s/06-gateway.yaml
+
+# El realm de Keycloak es un JSON grande: no se puede incrustar cómodamente en
+# un ConfigMap escrito a mano. kustomize lo genera desde el archivo real, el
+# MISMO que monta Docker Compose. Una sola fuente de verdad para los dos modos.
+#
+# Al nombre generado se le añade un sufijo con el hash del contenido
+# (keycloak-realm-config-abc123…) y la referencia del Deployment se reescribe
+# sola. Si editas el realm y vuelves a aplicar, Keycloak se reinicia con el
+# realm nuevo en lugar de quedarse con el viejo cacheado.
+configMapGenerator:
+  - name: keycloak-realm-config
+    files:
+      - realm-export.json=keycloak/realm-export.json
+
+# Etiqueta común a todos los objetos. Permite, por ejemplo:
+#   kubectl get all -l app.kubernetes.io/part-of=sistema-salud
+# includeSelectors: false -> no toca los `selector` de Deployments y Services,
+# que son inmutables una vez creados.
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: sistema-salud
+    includeSelectors: false
