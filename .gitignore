@@ -26,7 +26,11 @@ replay_pid*
 # Gradle
 .gradle/
 build/
-!gradle/wrapper/gradle-wrapper.jar
+# OJO: el patrón lleva "**/" a propósito. Sin él, la negación queda anclada a
+# la raíz del repositorio y NO cubre los wrappers de cada microservicio
+# (eureka-server/gradle/wrapper/...), que entonces *.jar se traga en silencio
+# y las imágenes Docker fallan con "Unable to access jarfile".
+!**/gradle/wrapper/gradle-wrapper.jar
 !**/src/main/**/build/
 !**/src/test/**/build/
 
@@ -39,8 +43,11 @@ venv/
 .ruff_cache/
 # uv.lock SÍ se versiona: fija las versiones exactas para toda la clase
 
-# Node / varios
+# Salida de compilación de Maven / Eclipse (el proyecto usa Gradle, pero los
+# IDEs generan estas carpetas igual). No deben versionarse.
 target/
+bin/
+out/
 
 # IDEs
 .idea/
