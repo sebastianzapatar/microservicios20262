@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenFeign vs RabbitMQ vs Kafka | Universidad EIA</title>
+    <meta name="description" content="Comparativa clara entre OpenFeign, RabbitMQ y Apache Kafka para comunicar microservicios: cómo funciona cada uno, ventajas, desventajas y cuándo usarlo.">
+    <link rel="icon" href="https://www.eia.edu.co/wp-content/uploads/2024/05/Favicon-new-100x100.webp">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+        :root{
+            /* Paleta de sistema-vocacional-eia.onrender.com */
+            --eia-dark:#005b68;--eia-dark-2:#004853;--eia-cyan:#10b8cc;--eia-cyan-soft:#e9f9fb;--eia-mid:#04798a;
+            --ink:#17313a;--muted:#61727a;--line:#d9e4e7;--bg:#f5f8f8;--white:#fff;--success:#16794a;--success-soft:#eefaf4;
+            --warn:#a4492f;--warn-soft:#fbf0ec;
+            --shadow:0 18px 50px rgba(0,91,104,.10);
+            /* Un color por tecnología, todos dentro de la paleta */
+            --feign:#005b68;--feign-soft:#e8eff1;
+            --rabbit:#10b8cc;--rabbit-soft:#e9f9fb;
+            --kafka:#16794a;--kafka-soft:#eefaf4;
+            --fh:'Inter',ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;--fc:'Fira Code',monospace;
+        }
+        html,body{width:100%;height:100%;overflow:hidden;font-family:var(--fh);background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased}
+        b,strong{color:var(--eia-dark-2);font-weight:700}
+        code{font-family:var(--fc);font-size:.86em;background:var(--eia-cyan-soft);color:var(--eia-dark);padding:1px 6px;border-radius:5px}
+
+        .slide{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;align-items:center;padding:44px 64px 76px;opacity:0;transform:translateX(80px);transition:all .55s cubic-bezier(.4,0,.2,1);pointer-events:none;overflow-y:auto}
+        .slide.active{opacity:1;transform:translateX(0);pointer-events:all}
+        .slide.prev{opacity:0;transform:translateX(-80px)}
+        .slide::before{content:'';position:absolute;inset:0;pointer-events:none;z-index:0}
+        .slide>*{position:relative;z-index:1}
+        .bg-grid::before{background-image:linear-gradient(rgba(0,91,104,.045) 1px,transparent 1px),linear-gradient(90deg,rgba(0,91,104,.045) 1px,transparent 1px);background-size:56px 56px}
+        .bg-grad::before{background:radial-gradient(ellipse at 15% 40%,rgba(16,184,204,.14) 0%,transparent 55%),radial-gradient(ellipse at 85% 15%,rgba(0,91,104,.10) 0%,transparent 50%)}
+        .bg-dark{background:linear-gradient(135deg,var(--eia-dark) 0%,var(--eia-dark-2) 100%);color:#fff}
+        .bg-dark b{color:#fff}
+
+        .st{font-size:clamp(2rem,4vw,3.4rem);font-weight:900;line-height:1.1;letter-spacing:-.03em;margin-bottom:14px}
+        .st .hi{color:var(--eia-cyan)}
+        .ss{font-size:clamp(.95rem,1.5vw,1.2rem);color:var(--muted);max-width:760px;text-align:center;line-height:1.6;margin-bottom:28px}
+        .bg-dark .ss{color:rgba(255,255,255,.78)}
+        h2.tt{font-size:clamp(1.4rem,2.7vw,2.2rem);font-weight:800;letter-spacing:-.02em;margin-bottom:8px;text-align:center}
+        h2.tt .n{color:var(--eia-cyan)}
+        .sd{font-size:clamp(.88rem,1.2vw,1.04rem);color:var(--muted);margin-bottom:26px;max-width:840px;line-height:1.6;text-align:center}
+
+        .bd{display:inline-block;padding:4px 12px;border-radius:999px;font-size:.74rem;font-weight:700;letter-spacing:.02em}
+        .b-eia{background:var(--eia-cyan-soft);color:var(--eia-dark);border:1px solid #bfe2e7}
+        .b-f{background:var(--feign);color:#fff}.b-r{background:var(--rabbit);color:#fff}.b-k{background:var(--kafka);color:#fff}
+        a.bd{text-decoration:none;padding:9px 18px;font-size:.9rem;transition:transform .2s,box-shadow .2s}
+        a.bd:hover{transform:translateY(-2px);box-shadow:var(--shadow)}
+
+        .grid{display:grid;gap:16px;width:100%;max-width:1120px}
+        .g2{grid-template-columns:1fr 1fr}.g3{grid-template-columns:repeat(3,1fr)}
+        .cd{background:var(--white);border:1px solid var(--line);border-radius:16px;padding:22px;box-shadow:0 2px 0 rgba(0,91,104,.03)}
+        .cd.top-f{border-top:5px solid var(--feign)}.cd.top-r{border-top:5px solid var(--rabbit)}.cd.top-k{border-top:5px solid var(--kafka)}
+        .ci{font-size:2rem;display:block;margin-bottom:8px}
+        .cn{font-size:1.08rem;font-weight:800;margin-bottom:6px}
+        .ct{font-size:.88rem;color:var(--muted);line-height:1.55}
+        .kv{margin-top:12px;display:flex;flex-direction:column;gap:6px}
+        .kv div{font-size:.8rem;color:var(--muted);display:flex;gap:8px}
+        .kv span{font-weight:700;color:var(--ink);min-width:88px}
+
+        /* Diagramas de flujo */
+        .flow{display:flex;align-items:center;justify-content:center;gap:0;width:100%;max-width:1060px;flex-wrap:nowrap}
+        .node{background:var(--white);border:2px solid var(--line);border-radius:14px;padding:14px 18px;text-align:center;min-width:140px}
+        .node .ni{font-size:1.6rem}.node .nn{font-weight:800;font-size:.92rem;margin-top:4px}.node .nd{font-size:.72rem;color:var(--muted);margin-top:2px}
+        .node.hl-f{border-color:var(--feign);background:var(--feign-soft)}
+        .node.hl-r{border-color:var(--rabbit);background:var(--rabbit-soft)}
+        .node.hl-k{border-color:var(--kafka);background:var(--kafka-soft)}
+        .arr{flex:1;min-width:60px;max-width:150px;text-align:center;font-size:.7rem;font-weight:700;color:var(--muted);padding:0 6px}
+        .arr .ln{height:2px;background:var(--eia-mid);position:relative;margin:6px 0}
+        .arr .ln::after{content:'';position:absolute;right:-1px;top:-5px;border:6px solid transparent;border-left:9px solid var(--eia-mid);border-right:0}
+        .arr.back .ln::after{right:auto;left:-1px;border-left:0;border-right:9px solid var(--eia-mid)}
+        .arr.dash .ln{background:repeating-linear-gradient(90deg,var(--eia-mid) 0 6px,transparent 6px 11px)}
+        .log{display:flex;gap:3px;margin-top:8px;justify-content:center}
+        .log i{display:block;width:20px;height:22px;border-radius:4px;background:var(--kafka);opacity:.85;font-style:normal;color:#fff;font-size:.6rem;line-height:22px;font-weight:700}
+        .log i.new{background:var(--eia-cyan)}
+        .q{display:flex;gap:3px;margin-top:8px;justify-content:center}
+        .q i{display:block;width:16px;height:20px;border-radius:4px;background:var(--rabbit)}
+        .stack{display:flex;flex-direction:column;gap:10px}
+
+        .note{margin-top:22px;max-width:960px;width:100%;background:var(--eia-cyan-soft);border:1px solid #bfe2e7;border-left:5px solid var(--eia-cyan);border-radius:12px;padding:14px 18px;font-size:.9rem;line-height:1.55}
+        .note.f{background:var(--feign-soft);border-color:#c3d4d8;border-left-color:var(--feign)}
+        .note.k{background:var(--kafka-soft);border-color:#c8ead7;border-left-color:var(--kafka)}
+
+        /* Código */
+        .cb{background:#0f2a31;border-radius:12px;padding:16px 18px;font-family:var(--fc);font-size:.76rem;line-height:1.65;color:#dbe9ec;overflow-x:auto;width:100%;white-space:pre;box-shadow:var(--shadow)}
+        .cb .kw{color:#7fdbe8}.cb .an{color:#9fe3b7}.cb .str{color:#ffd59a}.cb .cmt{color:#7f9aa1}
+        .cbh{font-family:var(--fc);font-size:.72rem;color:var(--muted);margin:0 0 6px 4px}
+
+        /* Pros / contras */
+        .pc{display:grid;grid-template-columns:1fr 1fr;gap:18px;width:100%;max-width:1080px}
+        .pc h3{font-size:1rem;font-weight:800;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+        .pc ul{list-style:none;display:flex;flex-direction:column;gap:9px}
+        .pc li{display:flex;gap:10px;align-items:flex-start;font-size:.86rem;line-height:1.5;padding:10px 14px;border-radius:10px;background:var(--white);border:1px solid var(--line)}
+        .pc li .ic{flex-shrink:0;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:900;color:#fff}
+        .pc .pro .ic{background:var(--success)}.pc .con .ic{background:var(--warn)}
+        .pc .pro h3{color:var(--success)}.pc .con h3{color:var(--warn)}
+
+        /* Tabla */
+        .tbl{width:100%;max-width:1120px;border-collapse:separate;border-spacing:0;font-size:.82rem;background:var(--white);border:1px solid var(--line);border-radius:14px;overflow:hidden;box-shadow:var(--shadow)}
+        .tbl th{padding:11px 14px;text-align:left;font-weight:800;font-size:.8rem;color:#fff}
+        .tbl th:first-child{background:var(--eia-dark-2)}
+        .tbl th.f{background:var(--feign)}.tbl th.r{background:var(--rabbit)}.tbl th.k{background:var(--kafka)}
+        .tbl td{padding:9px 14px;border-top:1px solid var(--line);line-height:1.4;vertical-align:top}
+        .tbl td:first-child{font-weight:700;color:var(--eia-dark);background:#f7fbfc;white-space:nowrap}
+        .tbl tr:hover td{background:var(--eia-cyan-soft)}
+
+        /* Escenario */
+        .sc{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;width:100%;max-width:1120px}
+        .sc .cd{display:flex;flex-direction:column;gap:10px}
+        .res{margin-top:auto;padding:10px 12px;border-radius:10px;font-size:.84rem;font-weight:700}
+        .res.bad{background:var(--warn-soft);color:var(--warn)}.res.ok{background:var(--success-soft);color:var(--success)}
+
+        /* Árbol de decisión */
+        .dt{display:flex;flex-direction:column;gap:12px;width:100%;max-width:980px}
+        .dq{display:grid;grid-template-columns:1.3fr auto 1fr;gap:14px;align-items:center}
+        .dq .qq{background:var(--white);border:1px solid var(--line);border-radius:12px;padding:14px 16px;font-size:.9rem;font-weight:600}
+        .dq .yes{font-size:.72rem;font-weight:800;color:var(--success);background:var(--success-soft);padding:4px 10px;border-radius:999px}
+        .dq .aa{border-radius:12px;padding:14px 16px;font-weight:800;color:#fff;font-size:.92rem}
+        .aa.f{background:var(--feign)}.aa.r{background:var(--rabbit)}.aa.k{background:var(--kafka)}
+        .aa small{display:block;font-weight:500;font-size:.74rem;opacity:.9;margin-top:2px}
+
+        /* Navegación */
+        .nav{position:fixed;bottom:0;left:0;right:0;height:54px;background:rgba(255,255,255,.94);backdrop-filter:blur(14px);border-top:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 24px;z-index:1000}
+        .nav .nl{display:flex;align-items:center;gap:10px}
+        .nav .nl img{height:28px}
+        .nav .nl .ns{color:var(--line)}.nav .nl .nt{font-size:.8rem;color:var(--muted);font-weight:600}
+        .nav .nc{display:flex;gap:5px}
+        .nav .dt2{width:7px;height:7px;border-radius:50%;background:var(--line);transition:all .3s;cursor:pointer}
+        .nav .dt2.act{background:var(--eia-cyan);width:20px;border-radius:4px}
+        .nav .nr{display:flex;align-items:center;gap:12px}
+        .nav .cnt{font-family:var(--fc);font-size:.78rem;color:var(--muted)}
+        .nb{width:34px;height:34px;border-radius:8px;border:1px solid var(--line);background:var(--white);color:var(--eia-dark);cursor:pointer;font-size:1.1rem;font-weight:700;transition:all .2s}
+        .nb:hover{background:var(--eia-cyan-soft);border-color:var(--eia-cyan)}
+        .pb{position:fixed;top:0;left:0;height:4px;background:linear-gradient(90deg,var(--eia-dark),var(--eia-cyan));transition:width .4s;z-index:1001}
+        .kbd{font-family:var(--fc);font-size:.66rem;padding:2px 6px;border-radius:4px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.25)}
+
+        @keyframes fadeInUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+        .slide.active .fi{animation:fadeInUp .5s ease forwards}
+        .slide.active .fd1{animation-delay:.1s;opacity:0}.slide.active .fd2{animation-delay:.2s;opacity:0}.slide.active .fd3{animation-delay:.3s;opacity:0}.slide.active .fd4{animation-delay:.4s;opacity:0}
+
+        @media(max-width:900px){
+            .slide{padding:30px 16px 70px;justify-content:flex-start}
+            .g2,.g3,.pc,.sc{grid-template-columns:1fr}
+            .flow{flex-wrap:wrap;gap:8px}.arr{min-width:40px}
+            .dq{grid-template-columns:1fr}
+            .tbl{font-size:.72rem;display:block;overflow-x:auto}
+            .nav .nc,.nav .nl .nt,.nav .nl .ns{display:none}
+        }
+    </style>
+</head>
+<body>
+<div class="pb" id="pb" style="width:0%"></div>
+<div id="pres">
+
+<!-- SLIDE 1: PORTADA -->
+<div class="slide active bg-dark" data-s="0">
+<div style="text-align:center">
+    <img src="https://www.eia.edu.co/wp-content/uploads/2024/05/Favicon-new-300x300.webp" alt="Escudo Universidad EIA" style="width:78px;height:78px;border-radius:16px;margin-bottom:20px;background:#fff" class="fi">
+    <div class="fi fd1" style="margin-bottom:18px"><span class="bd" style="background:rgba(255,255,255,.14);color:#fff">Universidad EIA · Implementación 2026-2</span></div>
+    <h1 class="st fi fd2">OpenFeign <span style="opacity:.5">vs</span> RabbitMQ <span style="opacity:.5">vs</span> <span class="hi">Kafka</span></h1>
+    <p class="ss fi fd3">Tres formas de que dos microservicios se hablen. Qué hace cada una, en qué se diferencian de verdad, y cuándo elegir cuál.</p>
+    <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap" class="fi fd4">
+        <span class="bd b-f" style="border:1px solid rgba(255,255,255,.4)">OpenFeign · HTTP síncrono</span>
+        <span class="bd b-r">RabbitMQ · Cola de mensajes</span>
+        <span class="bd b-k">Kafka · Log de eventos</span>
+    </div>
+    <p style="margin-top:36px;font-size:.8rem;color:rgba(255,255,255,.7)" class="fi fd4">Usa <span class="kbd">←</span> <span class="kbd">→</span> o <span class="kbd">Space</span> para navegar</p>
+</div>
+</div>
+
+<!-- SLIDE 2: LA PREGUNTA -->
+<div class="slide bg-grid" data-s="1">
+<h2 class="tt fi"><span class="n">01.</span> La pregunta de fondo</h2>
+<p class="sd fi fd1"><b>Historial</b> necesita saber algo de <b>Pacientes</b>. ¿Le pregunta directamente y espera la respuesta, o le deja un mensaje y sigue con lo suyo? Esa es toda la diferencia entre comunicación <b>síncrona</b> y <b>asíncrona</b>.</p>
+<div class="grid g3 fi fd2">
+    <div class="cd top-f"><span class="ci">📞</span><div class="cn">Una llamada telefónica</div><div class="ct"><b>OpenFeign.</b> Marcas, esperas a que contesten y no cuelgas hasta tener la respuesta. Si nadie contesta, no hay conversación.</div></div>
+    <div class="cd top-r"><span class="ci">📬</span><div class="cn">Un buzón con cartero</div><div class="ct"><b>RabbitMQ.</b> Dejas la carta; el cartero decide a qué buzón va. El destinatario la lee cuando pueda y, una vez leída, <b>la carta desaparece</b>.</div></div>
+    <div class="cd top-k"><span class="ci">📰</span><div class="cn">Un periódico archivado</div><div class="ct"><b>Kafka.</b> Publicas una noticia en un registro que <b>no se borra</b>. Cada lector lleva su propio marcador y puede volver a leer desde cualquier página.</div></div>
+</div>
+<div class="note fi fd3">Las tres resuelven el mismo problema (comunicar servicios), pero cambian <b>quién espera a quién</b>, <b>qué pasa si el otro está caído</b> y <b>cuánto tiempo vive el mensaje</b>.</div>
+</div>
+
+<!-- SLIDE 3: DE UN VISTAZO -->
+<div class="slide bg-grad" data-s="2">
+<h2 class="tt fi"><span class="n">02.</span> Los tres, de un vistazo</h2>
+<p class="sd fi fd1">Una no es "mejor" que otra: son herramientas de categorías distintas.</p>
+<div class="grid g3 fi fd2">
+    <div class="cd top-f">
+        <div class="cn" style="color:var(--feign)">OpenFeign</div>
+        <div class="ct">Una <b>librería</b> de Spring Cloud. Escribes una interfaz Java y Feign genera el cliente HTTP por ti. No hay servidor intermedio.</div>
+        <div class="kv">
+            <div><span>Tipo</span>Cliente HTTP declarativo</div>
+            <div><span>Estilo</span>Síncrono, petición/respuesta</div>
+            <div><span>Intermediario</span>Ninguno (usa Eureka)</div>
+            <div><span>El mensaje</span>No existe fuera de la llamada</div>
+        </div>
+    </div>
+    <div class="cd top-r">
+        <div class="cn" style="color:var(--eia-mid)">RabbitMQ</div>
+        <div class="ct">Un <b>message broker</b>: un servidor que recibe mensajes, los enruta a colas y los entrega a quien los consuma.</div>
+        <div class="kv">
+            <div><span>Tipo</span>Broker de colas (AMQP)</div>
+            <div><span>Estilo</span>Asíncrono, "push" al consumidor</div>
+            <div><span>Intermediario</span>Exchanges + colas</div>
+            <div><span>El mensaje</span>Se borra al confirmarse (ack)</div>
+        </div>
+    </div>
+    <div class="cd top-k">
+        <div class="cn" style="color:var(--kafka)">Apache Kafka</div>
+        <div class="ct">Una <b>plataforma de streaming</b>: un registro (log) distribuido, ordenado y persistente donde se anexan eventos.</div>
+        <div class="kv">
+            <div><span>Tipo</span>Log de eventos distribuido</div>
+            <div><span>Estilo</span>Asíncrono, "pull" del consumidor</div>
+            <div><span>Intermediario</span>Topics + particiones</div>
+            <div><span>El mensaje</span>Se conserva (retención)</div>
+        </div>
+    </div>
+</div>
+</div>
+
+<!-- SLIDE 4: OPENFEIGN CÓMO FUNCIONA -->
+<div class="slide bg-grid" data-s="3">
+<h2 class="tt fi"><span class="n">03.</span> OpenFeign: cómo funciona</h2>
+<p class="sd fi fd1">Es una llamada REST normal, pero escrita como si fuera un método Java. El hilo que llama <b>se queda bloqueado</b> hasta que llega la respuesta.</p>
+<div class="flow fi fd2">
+    <div class="node hl-f"><div class="ni">🩺</div><div class="nn">Historial</div><div class="nd">llama y espera…</div></div>
+    <div class="stack" style="flex:1;max-width:220px">
+        <div class="arr" style="max-width:none">GET /api/pacientes/42<div class="ln"></div></div>
+        <div class="arr back" style="max-width:none"><div class="ln"></div>200 OK · { "id": 42, … }</div>
+    </div>
+    <div class="node"><div class="ni">👤</div><div class="nn">Pacientes</div><div class="nd">responde</div></div>
+</div>
+<div class="grid g2 fi fd3" style="margin-top:24px;max-width:1000px">
+    <div>
+        <div class="cbh">PacienteClient.java</div>
+<div class="cb"><span class="an">@FeignClient</span>(name = <span class="str">"pacientes-service"</span>)
+<span class="kw">public interface</span> PacienteClient {
+
+    <span class="an">@GetMapping</span>(<span class="str">"/api/pacientes/{id}"</span>)
+    PacienteDto obtener(<span class="an">@PathVariable</span> Long id);
+}</div>
+    </div>
+    <div>
+        <div class="cbh">HistorialService.java</div>
+<div class="cb"><span class="cmt">// Parece local, pero es una llamada HTTP.</span>
+<span class="cmt">// Eureka resuelve "pacientes-service" a una IP.</span>
+PacienteDto p = pacienteClient.obtener(<span class="str">42L</span>);
+
+<span class="cmt">// Si Pacientes está caído, aquí salta</span>
+<span class="cmt">// una excepción (FeignException).</span></div>
+    </div>
+</div>
+<div class="note f fi fd4">En este repo, <code>main</code> hace exactamente esto con <code>RestClient</code> en <code>PacienteClient.java</code>. OpenFeign es la versión <b>declarativa</b> de lo mismo: menos código, idéntico comportamiento en red.</div>
+</div>
+
+<!-- SLIDE 5: OPENFEIGN PROS / CONTRAS -->
+<div class="slide bg-grad" data-s="4">
+<h2 class="tt fi"><span class="n">04.</span> OpenFeign: ventajas y desventajas</h2>
+<p class="sd fi fd1">Lo más simple de las tres opciones. Esa simplicidad sale cara cuando algo falla.</p>
+<div class="pc fi fd2">
+    <div class="pro"><h3>✓ Ventajas</h3><ul>
+        <li><span class="ic">✓</span><div><b>Respuesta inmediata.</b> Obtienes el dato en el momento, ideal para consultas y validaciones.</div></li>
+        <li><span class="ic">✓</span><div><b>Muy fácil de entender.</b> Es HTTP/REST: se prueba con Postman o curl y se depura como cualquier API.</div></li>
+        <li><span class="ic">✓</span><div><b>Sin infraestructura extra.</b> No hay broker que instalar, vigilar ni escalar.</div></li>
+        <li><span class="ic">✓</span><div><b>Poco código.</b> Una interfaz con anotaciones; integra Eureka, balanceo y Resilience4j.</div></li>
+    </ul></div>
+    <div class="con"><h3>✕ Desventajas</h3><ul>
+        <li><span class="ic">✕</span><div><b>Acoplamiento temporal.</b> Si Pacientes está caído, Historial tampoco puede trabajar.</div></li>
+        <li><span class="ic">✕</span><div><b>Fallos en cascada.</b> Un servicio lento bloquea hilos en todos los que lo llaman.</div></li>
+        <li><span class="ic">✕</span><div><b>Punto a punto.</b> El emisor debe conocer a cada receptor; un nuevo interesado obliga a cambiar código.</div></li>
+        <li><span class="ic">✕</span><div><b>Sin memoria.</b> Si la llamada falla, el dato se pierde salvo que tú programes reintentos.</div></li>
+    </ul></div>
+</div>
+</div>
+
+<!-- SLIDE 6: RABBITMQ CÓMO FUNCIONA -->
+<div class="slide bg-grid" data-s="5">
+<h2 class="tt fi"><span class="n">05.</span> RabbitMQ: cómo funciona</h2>
+<p class="sd fi fd1">El productor no envía a un servicio: envía a un <b>exchange</b>. El exchange decide, por <b>routing key</b>, a qué <b>colas</b> copiar el mensaje. Cada cola entrega a su consumidor y, cuando este confirma (<b>ack</b>), el mensaje <b>se elimina</b>.</p>
+<div class="flow fi fd2">
+    <div class="node"><div class="ni">👤</div><div class="nn">Pacientes</div><div class="nd">productor</div></div>
+    <div class="arr">paciente.creado<div class="ln"></div></div>
+    <div class="node hl-r"><div class="ni">🔀</div><div class="nn">salud.events</div><div class="nd">exchange (topic)</div></div>
+    <div class="arr">binding<div class="ln"></div></div>
+    <div class="node hl-r"><div class="ni">📥</div><div class="nn">historial.eventos.pacientes</div><div class="nd">cola</div><div class="q"><i></i><i></i><i></i></div></div>
+    <div class="arr dash">push + ack<div class="ln"></div></div>
+    <div class="node"><div class="ni">🩺</div><div class="nn">Historial</div><div class="nd">consumidor</div></div>
+</div>
+<div class="grid g2 fi fd3" style="margin-top:24px;max-width:1000px">
+    <div>
+        <div class="cbh">Productor · pacientes-service</div>
+<div class="cb">rabbitTemplate.convertAndSend(
+    <span class="str">"salud.events"</span>,      <span class="cmt">// exchange</span>
+    <span class="str">"paciente.creado"</span>,   <span class="cmt">// routing key</span>
+    evento);
+<span class="cmt">// Retorna al instante: no espera a nadie.</span></div>
+    </div>
+    <div>
+        <div class="cbh">Consumidor · historial-medico-service</div>
+<div class="cb"><span class="an">@RabbitListener</span>(queues = <span class="str">"historial.eventos.pacientes"</span>)
+<span class="kw">void</span> onPaciente(PacienteEvento e) {
+    replica.save(e);  <span class="cmt">// ack al terminar</span>
+}   <span class="cmt">// si falla → reintento → salud.dlq</span></div>
+    </div>
+</div>
+<div class="note fi fd4">RabbitMQ también permite <b>RPC sobre colas</b> (<code>historial.rpc</code> en la rama <code>rabbitmq</code>): pides y esperas respuesta, pero a través del broker en lugar de HTTP.</div>
+</div>
+
+<!-- SLIDE 7: RABBITMQ PROS / CONTRAS -->
+<div class="slide bg-grad" data-s="6">
+<h2 class="tt fi"><span class="n">06.</span> RabbitMQ: ventajas y desventajas</h2>
+<p class="sd fi fd1">Un broker de propósito general: muy flexible para repartir trabajo, pero el mensaje es "de un solo uso".</p>
+<div class="pc fi fd2">
+    <div class="pro"><h3>✓ Ventajas</h3><ul>
+        <li><span class="ic">✓</span><div><b>Desacopla en el tiempo.</b> Si Historial está caído, los mensajes esperan en la cola hasta que vuelva.</div></li>
+        <li><span class="ic">✓</span><div><b>Enrutamiento muy rico.</b> Exchanges direct, topic, fanout y headers: decides con precisión quién recibe qué.</div></li>
+        <li><span class="ic">✓</span><div><b>Garantías por mensaje.</b> Ack, reintentos, TTL, prioridades y dead-letter queues listos para usar.</div></li>
+        <li><span class="ic">✓</span><div><b>Baja latencia y fácil de operar.</b> Un solo contenedor y una consola web para ver colas en vivo.</div></li>
+    </ul></div>
+    <div class="con"><h3>✕ Desventajas</h3><ul>
+        <li><span class="ic">✕</span><div><b>El mensaje se borra.</b> Una vez consumido no se puede "volver a leer" ni reconstruir el pasado.</div></li>
+        <li><span class="ic">✕</span><div><b>Un consumidor nuevo llega tarde.</b> Solo ve los mensajes publicados después de crear su cola.</div></li>
+        <li><span class="ic">✕</span><div><b>Throughput limitado.</b> Rinde muy bien, pero no está pensado para millones de eventos por segundo.</div></li>
+        <li><span class="ic">✕</span><div><b>Orden frágil.</b> Con varios consumidores o reintentos, el orden de llegada puede alterarse.</div></li>
+    </ul></div>
+</div>
+</div>
+
+<!-- SLIDE 8: KAFKA CÓMO FUNCIONA -->
+<div class="slide bg-grid" data-s="7">
+<h2 class="tt fi"><span class="n">07.</span> Kafka: cómo funciona</h2>
+<p class="sd fi fd1">El productor <b>anexa</b> eventos al final de un <b>topic</b> (dividido en particiones). Nada se borra al leer: cada <b>consumer group</b> guarda su <b>offset</b> (hasta dónde leyó) y avanza a su ritmo.</p>
+<div class="flow fi fd2">
+    <div class="node"><div class="ni">👤</div><div class="nn">Pacientes</div><div class="nd">productor</div></div>
+    <div class="arr">send(key=id)<div class="ln"></div></div>
+    <div class="node hl-k" style="min-width:260px"><div class="ni">📜</div><div class="nn">topic salud.pacientes</div><div class="nd">log ordenado · se conserva</div>
+        <div class="log"><i>0</i><i>1</i><i>2</i><i>3</i><i>4</i><i class="new">5</i></div></div>
+    <div class="stack" style="flex:1;max-width:200px">
+        <div class="arr dash back" style="max-width:none"><div class="ln"></div>grupo historial · offset 5</div>
+        <div class="arr dash back" style="max-width:none"><div class="ln"></div>grupo auditoría · offset 2</div>
+    </div>
+    <div class="stack"><div class="node" style="padding:10px 14px"><div class="nn">🩺 Historial</div></div><div class="node" style="padding:10px 14px"><div class="nn">🔎 Auditoría</div></div></div>
+</div>
+<div class="grid g2 fi fd3" style="margin-top:24px;max-width:1000px">
+    <div>
+        <div class="cbh">Productor · pacientes-service</div>
+<div class="cb">kafkaTemplate.send(
+    <span class="str">"salud.pacientes"</span>,  <span class="cmt">// topic</span>
+    pacienteId,           <span class="cmt">// key → misma partición</span>
+    evento);              <span class="cmt">//        → mismo orden</span></div>
+    </div>
+    <div>
+        <div class="cbh">Consumidor · historial-medico-service</div>
+<div class="cb"><span class="an">@KafkaListener</span>(topics = <span class="str">"salud.pacientes"</span>,
+               groupId = <span class="str">"historial"</span>)
+<span class="kw">void</span> onPaciente(PacienteEvento e) {
+    replica.save(e);  <span class="cmt">// se confirma el offset</span>
+}</div>
+    </div>
+</div>
+<div class="note k fi fd4">Consumidor nuevo = <b>nuevo group id</b> leyendo desde el offset 0. Recibe <b>toda la historia</b> sin que el productor cambie una sola línea.</div>
+</div>
+
+<!-- SLIDE 9: KAFKA PROS / CONTRAS -->
+<div class="slide bg-grad" data-s="8">
+<h2 class="tt fi"><span class="n">08.</span> Kafka: ventajas y desventajas</h2>
+<p class="sd fi fd1">La más potente de las tres para eventos, y también la que más exige de quien la opera y la programa.</p>
+<div class="pc fi fd2">
+    <div class="pro"><h3>✓ Ventajas</h3><ul>
+        <li><span class="ic">✓</span><div><b>Replay.</b> Los eventos se conservan: puedes reprocesar, depurar o reconstruir el estado de un servicio.</div></li>
+        <li><span class="ic">✓</span><div><b>Muchos lectores independientes.</b> Cada consumer group lee el mismo topic sin afectar a los demás.</div></li>
+        <li><span class="ic">✓</span><div><b>Throughput enorme.</b> Escala horizontalmente con particiones; millones de eventos por segundo.</div></li>
+        <li><span class="ic">✓</span><div><b>Orden garantizado por clave.</b> Todos los eventos del paciente 42 llegan en el orden en que ocurrieron.</div></li>
+    </ul></div>
+    <div class="con"><h3>✕ Desventajas</h3><ul>
+        <li><span class="ic">✕</span><div><b>Más complejo de operar.</b> Brokers, particiones, réplicas, retención y compactación que dimensionar.</div></li>
+        <li><span class="ic">✕</span><div><b>Sin petición/respuesta.</b> No está pensado para "pregunto y espero"; se diseña con réplicas locales.</div></li>
+        <li><span class="ic">✕</span><div><b>Idempotencia obligatoria.</b> Un evento puede llegar más de una vez; el consumidor debe tolerarlo.</div></li>
+        <li><span class="ic">✕</span><div><b>Enrutamiento simple.</b> Solo por topic; no hay exchanges ni reglas finas como en RabbitMQ.</div></li>
+    </ul></div>
+</div>
+</div>
+
+<!-- SLIDE 10: ESCENARIO -->
+<div class="slide bg-grid" data-s="9">
+<h2 class="tt fi"><span class="n">09.</span> La diferencia, en un solo escenario</h2>
+<p class="sd fi fd1">Registramos un historial médico mientras <b>el servicio que debe recibir la información está caído 5 minutos</b>. ¿Qué pasa con cada opción?</p>
+<div class="sc fi fd2">
+    <div class="cd top-f">
+        <div class="cn" style="color:var(--feign)">OpenFeign</div>
+        <div class="ct">La llamada HTTP falla con timeout o <code>503</code>. El usuario ve un error.</div>
+        <div class="ct">Cuando el servicio vuelve, <b>nadie le avisa</b> de lo que pasó.</div>
+        <div class="res bad">✕ La operación falla y el dato se pierde.</div>
+    </div>
+    <div class="cd top-r">
+        <div class="cn" style="color:var(--eia-mid)">RabbitMQ</div>
+        <div class="ct">El mensaje se <b>acumula en la cola</b>. El usuario recibe su respuesta al instante.</div>
+        <div class="ct">Al volver, el consumidor procesa la cola y el mensaje <b>se borra</b>.</div>
+        <div class="res ok">✓ Nada se pierde. Se entrega una vez.</div>
+    </div>
+    <div class="cd top-k">
+        <div class="cn" style="color:var(--kafka)">Kafka</div>
+        <div class="ct">El evento se <b>anexa al log</b>. El usuario recibe su respuesta al instante.</div>
+        <div class="ct">Al volver, el consumidor sigue desde su offset. El evento <b>sigue ahí</b> para cualquier otro.</div>
+        <div class="res ok">✓ Nada se pierde. Y se puede releer.</div>
+    </div>
+</div>
+<div class="note fi fd3"><b>La clave:</b> Feign acopla en el <b>tiempo</b> (ambos vivos a la vez). RabbitMQ desacopla en el tiempo. Kafka desacopla en el tiempo <b>y además guarda la historia</b>.</div>
+</div>
+
+<!-- SLIDE 11: TABLA -->
+<div class="slide bg-grad" data-s="10">
+<h2 class="tt fi"><span class="n">10.</span> Comparativa lado a lado</h2>
+<p class="sd fi fd1">Las mismas preguntas, respondidas para las tres.</p>
+<table class="tbl fi fd2">
+    <thead><tr><th>Criterio</th><th class="f">OpenFeign</th><th class="r">RabbitMQ</th><th class="k">Kafka</th></tr></thead>
+    <tbody>
+        <tr><td>Modelo</td><td>Petición / respuesta HTTP</td><td>Cola de mensajes (broker)</td><td>Log de eventos distribuido</td></tr>
+        <tr><td>Sincronía</td><td>Síncrono, bloquea al que llama</td><td>Asíncrono (y RPC opcional)</td><td>Asíncrono</td></tr>
+        <tr><td>Acoplamiento</td><td>Alto: ambos vivos y se conocen</td><td>Bajo: solo conocen el exchange</td><td>Muy bajo: solo conocen el topic</td></tr>
+        <tr><td>Vida del mensaje</td><td>No existe fuera de la llamada</td><td>Hasta que se confirma (ack)</td><td>Según retención (días, o siempre)</td></tr>
+        <tr><td>Releer el pasado</td><td>No</td><td>No</td><td>Sí, moviendo el offset</td></tr>
+        <tr><td>Varios receptores</td><td>Una llamada por receptor</td><td>Una cola por receptor</td><td>Un consumer group por receptor</td></tr>
+        <tr><td>Orden</td><td>N/A</td><td>Por cola, frágil con reintentos</td><td>Garantizado por partición / clave</td></tr>
+        <tr><td>Rendimiento</td><td>Limitado por el servicio llamado</td><td>Alto, baja latencia</td><td>Muy alto, escala con particiones</td></tr>
+        <tr><td>Infraestructura</td><td>Ninguna extra</td><td>1 broker, sencillo</td><td>Clúster, más exigente</td></tr>
+        <tr><td>Curva de aprendizaje</td><td>Baja</td><td>Media</td><td>Alta</td></tr>
+        <tr><td>Ideal para</td><td>Consultas que necesitan respuesta ya</td><td>Tareas, comandos, notificaciones</td><td>Eventos de negocio, auditoría, streaming</td></tr>
+    </tbody>
+</table>
+</div>
+
+<!-- SLIDE 12: CUÁL ELEGIR -->
+<div class="slide bg-grid" data-s="11">
+<h2 class="tt fi"><span class="n">11.</span> ¿Cuál elijo?</h2>
+<p class="sd fi fd1">Tres preguntas, en este orden. La primera que respondas con "sí" te da la herramienta.</p>
+<div class="dt fi fd2">
+    <div class="dq"><div class="qq">¿Necesito la respuesta <b>ahora mismo</b> para continuar? <span style="color:var(--muted);font-weight:500">(ej. "¿existe el paciente 42?")</span></div><span class="yes">SÍ →</span><div class="aa f">OpenFeign<small>+ circuit breaker y timeout</small></div></div>
+    <div class="dq"><div class="qq">¿Es una <b>tarea u orden</b> que alguien debe hacer una vez, con reglas de enrutamiento? <span style="color:var(--muted);font-weight:500">(ej. "envía este correo")</span></div><span class="yes">SÍ →</span><div class="aa r">RabbitMQ<small>colas de trabajo, DLQ, prioridades</small></div></div>
+    <div class="dq"><div class="qq">¿Es un <b>hecho que ya ocurrió</b> y que muchos querrán leer, hoy o en el futuro? <span style="color:var(--muted);font-weight:500">(ej. "se creó un historial")</span></div><span class="yes">SÍ →</span><div class="aa k">Kafka<small>historia, replay, alto volumen</small></div></div>
+</div>
+<div class="note fi fd3">No son excluyentes. Un sistema real suele <b>combinarlas</b>: Feign para consultas puntuales, RabbitMQ para trabajos en segundo plano y Kafka como columna vertebral de eventos.</div>
+</div>
+
+<!-- SLIDE 13: EN NUESTRO PROYECTO -->
+<div class="slide bg-grad" data-s="12">
+<h2 class="tt fi"><span class="n">12.</span> En nuestro sistema de salud</h2>
+<p class="sd fi fd1">Resolvimos el mismo problema (Historial necesita datos de Pacientes) de tres formas, una por rama.</p>
+<div class="grid g3 fi fd2">
+    <div class="cd top-f">
+        <span class="bd b-f">rama main</span>
+        <div class="cn" style="margin-top:10px">Llamada HTTP directa</div>
+        <div class="ct">Historial llama a Pacientes con un cliente REST (<code>PacienteClient</code>) resuelto por Eureka antes de guardar cada historial.</div>
+        <div class="ct" style="margin-top:8px"><b>Resultado:</b> simple, pero si Pacientes cae, Historial no puede registrar nada.</div>
+    </div>
+    <div class="cd top-r">
+        <span class="bd b-r">rama rabbitmq</span>
+        <div class="cn" style="margin-top:10px">Eventos + RPC por colas</div>
+        <div class="ct">Exchange <code>salud.events</code>, colas por servicio, <code>historial.rpc</code> para consultas y <code>salud.dlq</code> para fallos. Java y Python conviven.</div>
+        <div class="ct" style="margin-top:8px"><b>Resultado:</b> Historial guarda una réplica local y aguanta caídas de Pacientes.</div>
+    </div>
+    <div class="cd top-k">
+        <span class="bd b-k">rama kafka</span>
+        <div class="cn" style="margin-top:10px">Réplica desde el log</div>
+        <div class="ct">Topics <code>salud.pacientes</code> y <code>salud.historiales</code> con clave por id, compactación y topics <code>-dlt</code>. Sin RPC.</div>
+        <div class="ct" style="margin-top:8px"><b>Resultado:</b> un servicio nuevo reconstruye todo leyendo desde el offset 0.</div>
+    </div>
+</div>
+</div>
+
+<!-- SLIDE 14: CIERRE -->
+<div class="slide bg-dark" data-s="13">
+<div style="text-align:center;max-width:860px">
+    <h1 class="st fi">En una frase</h1>
+    <div class="grid g3 fi fd1" style="margin:10px 0 28px;text-align:left">
+        <div class="cd" style="background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.2)"><div class="cn" style="color:#fff">OpenFeign</div><div class="ct" style="color:rgba(255,255,255,.82)">"Pregúntale y espera." Directo, simple, frágil ante caídas.</div></div>
+        <div class="cd" style="background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.2)"><div class="cn" style="color:var(--eia-cyan)">RabbitMQ</div><div class="ct" style="color:rgba(255,255,255,.82)">"Déjale el mensaje." Se entrega una vez y luego desaparece.</div></div>
+        <div class="cd" style="background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.2)"><div class="cn" style="color:#7fdca8">Kafka</div><div class="ct" style="color:rgba(255,255,255,.82)">"Anótalo en el registro." Queda para siempre y cualquiera puede releerlo.</div></div>
+    </div>
+    <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap" class="fi fd2">
+        <a href="index.html" class="bd" style="background:#fff;color:var(--eia-dark)">Volver a la presentación principal</a>
+        <a href="rabbitmq.html" class="bd b-r">Profundizar en RabbitMQ 🐰</a>
+        <a href="kafka.html" class="bd b-k">Profundizar en Kafka 🌊</a>
+    </div>
+</div>
+</div>
+
+</div>
+
+<!-- NAV -->
+<nav class="nav">
+    <div class="nl">
+        <img src="https://www.eia.edu.co/wp-content/uploads/2024/05/Favicon-new-100x100.webp" alt="EIA">
+        <span class="ns">|</span>
+        <span class="nt">OpenFeign vs RabbitMQ vs Kafka</span>
+    </div>
+    <div class="nc" id="dots"></div>
+    <div class="nr">
+        <span class="cnt"><span id="cur">1</span> / <span id="tot">14</span></span>
+        <button class="nb" onclick="prev()" title="← Anterior">‹</button>
+        <button class="nb" onclick="next()" title="→ Siguiente">›</button>
+    </div>
+</nav>
+
+<script>
+const S=document.querySelectorAll('.slide'),T=S.length;let I=0;
+document.getElementById('tot').textContent=T;
+const D=document.getElementById('dots');
+for(let i=0;i<T;i++){const d=document.createElement('div');d.className='dt2'+(i===0?' act':'');d.onclick=()=>go(i);D.appendChild(d)}
+function upd(){S.forEach((s,i)=>{s.classList.remove('active','prev');if(i===I)s.classList.add('active');else if(i<I)s.classList.add('prev')});document.querySelectorAll('.dt2').forEach((d,i)=>d.classList.toggle('act',i===I));document.getElementById('cur').textContent=I+1;document.getElementById('pb').style.width=(I/(T-1)*100)+'%'}
+function next(){if(I<T-1){I++;upd()}}
+function prev(){if(I>0){I--;upd()}}
+function go(i){I=i;upd()}
+document.addEventListener('keydown',e=>{switch(e.key){case'ArrowRight':case'ArrowDown':case' ':case'Enter':e.preventDefault();next();break;case'ArrowLeft':case'ArrowUp':case'Backspace':e.preventDefault();prev();break;case'Home':e.preventDefault();go(0);break;case'End':e.preventDefault();go(T-1);break}});
+let tx=0;document.addEventListener('touchstart',e=>{tx=e.touches[0].clientX});document.addEventListener('touchend',e=>{const d=tx-e.changedTouches[0].clientX;if(Math.abs(d)>50){d>0?next():prev()}});
+</script>
+</body>
+</html>
